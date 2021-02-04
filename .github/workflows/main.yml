@@ -19,7 +19,6 @@ on:
     pull_request:
 
 jobs:
-    # TODO ESP32 https://github.com/project-chip/connectedhomeip/issues/1510
     mbedos:
         name: Mbed OS
 
@@ -31,7 +30,6 @@ jobs:
         container:
             image: pan2048/chip-build-mbed-os:0.5.0
             volumes:
-                - "/tmp/bloat_reports:/tmp/bloat_reports"
                 - "/tmp/output_binaries:/tmp/output_binaries"
 
         steps:
@@ -46,30 +44,30 @@ jobs:
 #               with:
 #                   languages: "cpp, python"
 #                   queries: +security-and-quality
-            - name: Build example Echo App
+            - name: Build example Shell App
               run: scripts/examples/mbed_example.sh
-#             - name: Copy aside build products
-#               run: |
-#                   mkdir -p example_binaries/$BUILD_TYPE-build
-#                   cp examples/all-clusters-app/esp32/build/chip-all-clusters-app.elf \
-#                      example_binaries/$BUILD_TYPE-build/chip-all-clusters-app.elf
-#             - name: Binary artifact suffix
-#               id: outsuffix
-#               uses: haya14busa/action-cond@v1.0.0
-#               with:
-#                   cond: ${{ github.event.pull_request.number == '' }}
-#                   if_true: "${{ github.sha }}"
-#                   if_false: "pull-${{ github.event.pull_request.number }}"
-#             - name: Copy aside bloat report & binaries
-#               run: |
-#                   cp -r example_binaries/$BUILD_TYPE-build /tmp/output_binaries/
-#             - name: Uploading Binaries
-#               uses: actions/upload-artifact@v1
-#               with:
-#                   name:
-#                       ${{ env.BUILD_TYPE }}-example-build-${{
-#                       steps.outsuffix.outputs.value }}
-#                   path: /tmp/output_binaries/${{ env.BUILD_TYPE }}-build
+            - name: Copy aside build products
+              run: |
+                  mkdir -p example_binaries/$BUILD_TYPE-build
+                  cp examples/shell/mbed/cmake_build/chip-mbed-shell-example.hex \
+                     example_binaries/$BUILD_TYPE-build/chip-mbed-shell-example.hex
+            - name: Binary artifact suffix
+              id: outsuffix
+              uses: haya14busa/action-cond@v1.0.0
+              with:
+                  cond: ${{ github.event.pull_request.number == '' }}
+                  if_true: "${{ github.sha }}"
+                  if_false: "pull-${{ github.event.pull_request.number }}"
+            - name: Copy aside binaries
+              run: |
+                  cp -r example_binaries/$BUILD_TYPE-build /tmp/output_binaries/
+            - name: Uploading Binaries
+              uses: actions/upload-artifact@v1
+              with:
+                  name:
+                      ${{ env.BUILD_TYPE }}-example-build-${{
+                      steps.outsuffix.outputs.value }}
+                  path: /tmp/output_binaries/${{ env.BUILD_TYPE }}-build
             # - name: Remove third_party binaries for CodeQL Analysis
             #   run: find . -type d -name "third_party" -exec rm -rf {} +
             # - name: Remove m5stack-tft binaries for CodeQL Analysis
