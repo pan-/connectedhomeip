@@ -12,15 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Options from standalone-chip.mk that differ from configure defaults. These
+# options are used from examples/.
+
 import("//build_overrides/chip.gni")
 
-chip_device_platform = "mbed"
-lwip_platform = "mbed"
-
-chip_project_config_include = ""
-chip_system_project_config_include = ""
-
-custom_toolchain = "//toolchain:mbed"
-mbedtls_target = "//mbedtls:mbedtls"
-
-treat_warnings_as_errors = false
+# Mbed has its own mbedtls, so nothing to do, just provide a target
+group("mbedtls") {
+}
