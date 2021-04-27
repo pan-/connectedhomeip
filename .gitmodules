@@ -83,3 +83,11 @@
 [submodule "third_party/openthread/ot-efr32"]
 	path = third_party/openthread/ot-efr32
 	url = https://github.com/openthread/ot-efr32.git
+[submodule "mbed-os"]
+	path = third_party/mbed-os/repo
+	url = https://github.com/ARMmbed/mbed-os.git
+	branch = feature-chip
+[submodule "wifi-ism43362"]
+	path = third_party/wifi-ism43362/repo
+	url = https://github.com/ATmobica/wifi-ism43362.git
+	branch = master
