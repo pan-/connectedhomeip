@@ -50,3 +50,7 @@ protobuf
 anytree
 cxxfilt
 pandas
+
+# mbed 
+mbed-tools
+prettytable==0.7.2
