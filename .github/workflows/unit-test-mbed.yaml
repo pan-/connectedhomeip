@@ -51,7 +51,7 @@ jobs:
 
             - name: Copy aside binaries
               run: |
-                  cp -r example_binaries/ /tmp/output_binaries/
+                  cp -r example_binaries/* /tmp/output_binaries/
 
             - name: Uploading Binaries
               uses: actions/upload-artifact@v1
