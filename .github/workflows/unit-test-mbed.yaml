@@ -59,4 +59,4 @@ jobs:
               uses: actions/upload-artifact@v1
               with:
                   name: unit-test-build-${{steps.outsuffix.outputs.value }}
-                  path: /tmp/output_binaries/chip-test.hex
+                  path: /tmp/output_binaries/chip-tests.hex
