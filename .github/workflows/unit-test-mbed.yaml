@@ -56,7 +56,7 @@ jobs:
                   ls -la /tmp/output_binaries/
 
             - name: Uploading Binaries
-              uses: actions/upload-artifact@v1
+              uses: actions/upload-artifact@v2
               with:
                   name: unit-test-build-${{steps.outsuffix.outputs.value }}
                   path: /tmp/output_binaries/chip-tests.hex
