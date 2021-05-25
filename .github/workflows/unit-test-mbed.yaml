@@ -40,6 +40,7 @@ jobs:
               run: |
                   mkdir -p example_binaries/
                   cp chip-tests.hex example_binaries/
+                  ls -la example_binaries/
 
             - name: Binary artifact suffix
               id: outsuffix
@@ -52,6 +53,7 @@ jobs:
             - name: Copy aside binaries
               run: |
                   cp -r example_binaries/* /tmp/output_binaries/
+                  ls -la /tmp/output_binaries/
 
             - name: Uploading Binaries
               uses: actions/upload-artifact@v1
