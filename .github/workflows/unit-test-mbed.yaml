@@ -27,6 +27,7 @@ jobs:
         runs-on: ubuntu-latest
 
         container:
+            image: ubuntu:latest
             volumes:
                 - "/tmp/output_binaries:/tmp/output_binaries"
 
