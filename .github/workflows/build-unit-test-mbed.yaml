@@ -32,15 +32,10 @@ jobs:
                 - "/tmp/output_binaries:/tmp/output_binaries"
 
         steps:
-            - name: Build example Shell App
-              run: |
-                  echo "Hello World" > chip-tests.hex
-
-            - name: Copy aside build products
-              run: |
-                  mkdir -p example_binaries/
-                  cp chip-tests.hex example_binaries/
-                  ls -la example_binaries/
+            - name: Build unit test
+              run:
+                  scripts/tests/mbed_tests.sh -c=build -b=CY8CPROTO_062_4343W
+                  -p=develop
 
             - name: Binary artifact suffix
               id: outsuffix
@@ -52,11 +47,13 @@ jobs:
 
             - name: Copy aside binaries
               run: |
-                  cp -r example_binaries/* /tmp/output_binaries/
-                  ls -la /tmp/output_binaries/
+                  cp src/test_driver/mbed/build-CY8CPROTO_062_4343W/develop/chip-tests.hex /tmp/output_binaries/
 
             - name: Uploading Binaries
-              uses: actions/upload-artifact@v2
+              uses: actions/upload-artifact@v1
               with:
-                  name: unit-test-build-${{steps.outsuffix.outputs.value }}
+                  name:
+                      chip-test-${{
+                      env.EXAMPLE_PROFILE}}-build-${{steps.outsuffix.outputs.value
+                      }}
                   path: /tmp/output_binaries/chip-tests.hex
