@@ -27,7 +27,7 @@ jobs:
         runs-on: ubuntu-latest
 
         container:
-            image: ubuntu:latest
+            image: pan2048/chip-build-mbed-os:latest
             volumes:
                 - "/tmp/output_binaries:/tmp/output_binaries"
 
