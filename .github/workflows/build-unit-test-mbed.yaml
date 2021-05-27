@@ -32,6 +32,13 @@ jobs:
                 - "/tmp/output_binaries:/tmp/output_binaries"
 
         steps:
+            - name: Checkout
+              uses: actions/checkout@v2
+              # Fetch depth 0 to get all history and be able to check mergepoint for bloat report
+              with:
+                  fetch-depth: 0
+                  submodules: true
+
             - name: Build unit test
               run:
                   scripts/tests/mbed_tests.sh -c=build -b=CY8CPROTO_062_4343W
