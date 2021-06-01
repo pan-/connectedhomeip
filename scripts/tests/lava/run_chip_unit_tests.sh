@@ -17,7 +17,7 @@ download_artifacts $GITHUB_REPOSITORY $GITHUB_ARTIFACT_NAME $GITHUB_TOKEN archiv
 
 unzip archive.zip
 
-BINARY_PATH="$($PWD/chip-tests.hex)"
+BINARY_PATH="$PWD/chip-tests.hex"
 
 # mount all boards
 for x in {a..z}; do

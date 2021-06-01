@@ -32,9 +32,9 @@ prettytable==1.0.1
 prompt-toolkit==3.0.18
 ptyprocess==0.7.0
 py==1.10.0
-pycairo==1.20.0
+# pycairo==1.20.0
 Pygments==2.9.0
-PyGObject==3.40.1
+# PyGObject==3.40.1
 pyparsing==2.4.7
 pyserial==3.5
 pytest==6.2.4
