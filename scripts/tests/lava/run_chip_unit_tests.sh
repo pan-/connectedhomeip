@@ -16,5 +16,29 @@ echo "Downloading artifact: $GITHUB_ARTIFACT_NAME in $GITHUB_REPOSITORY"
 download_artifacts $GITHUB_REPOSITORY $GITHUB_ARTIFACT_NAME $GITHUB_TOKEN archive.zip
 
 unzip archive.zip
-ls -la
-# cat out.hex
+
+BINARY_PATH="$($PWD/chip-tests.hex)"
+
+# mount all boards
+for x in {a..z}; do
+    if [ -e "/dev/sd${x}" ]; then
+        echo "mounting /dev/sd${x}"
+        mkdir -p "/mnt/mbed${x}"
+        mount "/dev/sd${x}" "/mnt/mbed${x}"
+    fi
+done
+
+# Find the board id
+TID="$(mbedls -u -j | jq -r .[0].target_id)"
+
+# Flash the binary
+mbedflash flash -i $BINARY_PATH --tid $TID
+
+# Go into test folder
+cd $SCRIPT_DIR/../../../src/test_driver/mbed/mbed-functional
+
+# Install python requirements
+pip install -r requirements.txt
+
+# Run tests
+python3 -m pytest unit-tests/test_unittests.py
