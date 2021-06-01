@@ -28,6 +28,9 @@ for x in {a..z}; do
     fi
 done
 
+# Go into test folder
+cd $SCRIPT_DIR/../../../src/test_driver/mbed/mbed-functional
+
 # Install python requirements
 pip install -r requirements.txt
 
@@ -36,9 +39,6 @@ TID="$(mbedls -u -j | jq -r .[0].target_id)"
 
 # Flash the binary
 mbedflash flash -i $BINARY_PATH --tid $TID
-
-# Go into test folder
-cd $SCRIPT_DIR/../../../src/test_driver/mbed/mbed-functional
 
 # Run tests
 python3 -m pytest unit-tests/test_unittests.py
