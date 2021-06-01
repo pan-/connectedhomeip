@@ -41,8 +41,7 @@ jobs:
 
             - name: Build unit test
               run:
-                  scripts/tests/mbed_tests.sh -c=build -b=CY8CPROTO_062_4343W
-                  -p=develop
+                  scripts/tests/mbed_tests.sh -c=build -b=CY8CPROTO_062_4343W -p=develop
 
             - name: Binary artifact suffix
               id: outsuffix
@@ -59,8 +58,5 @@ jobs:
             - name: Uploading Binaries
               uses: actions/upload-artifact@v1
               with:
-                  name:
-                      chip-test-${{
-                      env.EXAMPLE_PROFILE}}-build-${{steps.outsuffix.outputs.value
-                      }}
+                  name: chip-test-${{env.EXAMPLE_PROFILE}}-build-${{steps.outsuffix.outputs.value}}
                   path: /tmp/output_binaries/chip-tests.hex
