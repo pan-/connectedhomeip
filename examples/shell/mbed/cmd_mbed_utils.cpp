@@ -56,10 +56,10 @@ using namespace chip::Transport;
 using namespace mbed;
 using namespace rtos;
 
-static chip::Shell::Shell sShellDateSubcommands;
-static chip::Shell::Shell sShellNetworkSubcommands;
-static chip::Shell::Shell sShellSocketSubcommands;
-static chip::Shell::Shell sShellServerSubcommands;
+static chip::Shell::Engine sShellDateSubcommands;
+static chip::Shell::Engine sShellNetworkSubcommands;
+static chip::Shell::Engine sShellSocketSubcommands;
+static chip::Shell::Engine sShellServerSubcommands;
 
 constexpr size_t kMaxTcpActiveConnectionCount = 2;
 constexpr size_t kMaxTcpPendingPackets        = 2;
@@ -89,7 +89,7 @@ void OnTcpMessageSent(Inet::TCPEndPoint * endPoint, uint16_t Length)
     streamer_printf(streamer_get(), "INFO: TCP socket message sent\r\n");
 }
 
-INET_ERROR OnTcpMessageReceived(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle buffer)
+INET_ERROR OnTcpMessageReceived(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle&& buffer)
 {
     streamer_t * sout = streamer_get();
 
@@ -107,7 +107,7 @@ void OnConnectionCompleted(Inet::TCPEndPoint * endPoint, INET_ERROR error)
     socketEvent.set(socketConnectionCompeletedFlag);
 }
 
-void OnUdpMessageReceived(Inet::IPEndPointBasis * endPoint, System::PacketBufferHandle buffer, const Inet::IPPacketInfo * pktInfo)
+void OnUdpMessageReceived(Inet::IPEndPointBasis * endPoint, System::PacketBufferHandle&& buffer, const Inet::IPPacketInfo * pktInfo)
 {
     char peerAddrStr[PeerAddress::kMaxToStringSize];
     streamer_t * sout       = streamer_get();
@@ -770,7 +770,7 @@ class ServerCallback : public SecureSessionMgrDelegate
 {
 public:
     void OnMessageReceived(const PacketHeader & header, const PayloadHeader & payloadHeader, SecureSessionHandle session,
-                           const Transport::PeerAddress & source, System::PacketBufferHandle buffer,
+                           const Transport::PeerAddress & source, System::PacketBufferHandle && buffer,
                            SecureSessionMgr * mgr) override
     {
         char src_addr[PeerAddress::kMaxToStringSize];
@@ -1017,9 +1017,9 @@ void cmd_mbed_utils_init()
     sShellNetworkSubcommands.RegisterCommands(cmds_network, ArraySize(cmds_network));
     sShellSocketSubcommands.RegisterCommands(cmds_socket, ArraySize(cmds_socket));
     sShellServerSubcommands.RegisterCommands(cmds_server, ArraySize(cmds_server));
-    shell_register(&cmds_date_root, 1);
-    shell_register(&cmds_test_config, 1);
-    shell_register(&cmds_network_root, 1);
-    shell_register(&cmds_socket_root, 1);
-    shell_register(&cmds_server_root, 1);
+    Engine::Root().RegisterCommands(&cmds_date_root, 1);
+    Engine::Root().RegisterCommands(&cmds_test_config, 1);
+    Engine::Root().RegisterCommands(&cmds_network_root, 1);
+    Engine::Root().RegisterCommands(&cmds_socket_root, 1);
+    Engine::Root().RegisterCommands(&cmds_server_root, 1);
 }

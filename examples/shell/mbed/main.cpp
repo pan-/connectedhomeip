@@ -61,6 +61,6 @@ int main()
     cmd_otcli_init();
     cmd_mbed_utils_init();
 
-    shell_task(nullptr);
+    Engine::Root().RunMainLoop();
     return 0;
 }
