@@ -69,7 +69,12 @@ void ConfigurationManagerImpl::_InitiateFactoryReset(void)
 
 CHIP_ERROR ConfigurationManagerImpl::_ReadPersistedStorageValue(::chip::Platform::PersistedStorage::Key key, uint32_t & value)
 {
-    return ReadCounter(key, value);
+    CHIP_ERROR err = ReadConfigValue(key, value);
+    if (err == CHIP_DEVICE_ERROR_CONFIG_NOT_FOUND)
+    {
+        err = CHIP_ERROR_PERSISTED_STORAGE_VALUE_NOT_FOUND;
+    }
+    return err;
 }
 
 CHIP_ERROR ConfigurationManagerImpl::_WritePersistedStorageValue(::chip::Platform::PersistedStorage::Key key, uint32_t value)
