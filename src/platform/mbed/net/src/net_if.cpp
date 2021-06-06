@@ -142,9 +142,9 @@ int mbed_getifaddrs(struct ifaddrs ** ifap)
     char * name_ptr = name;
     SocketAddress ip;
     SocketAddress netmask;
-    nsapi_version_t ipVersion;
+    // nsapi_version_t ipVersion;
     nsapi_connection_status_t status;
-    nsapi_error_t err;
+    // nsapi_error_t err;
 
     struct ifaddrs * tmp;
 
@@ -201,7 +201,7 @@ int mbed_getifaddrs(struct ifaddrs ** ifap)
     if (status == NSAPI_STATUS_LOCAL_UP || status == NSAPI_STATUS_GLOBAL_UP)
     {
         net_if->get_ip_address(&ip);
-        ipVersion = ip.get_ip_version();
+        // ipVersion = ip.get_ip_version();
         net_if->get_netmask(&netmask);
 
         tmp->ifa_addr = (struct sockaddr *) malloc(sizeof(struct sockaddr));

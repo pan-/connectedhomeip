@@ -684,7 +684,7 @@ void Layer::HandleSelectResult(int aSetSize, fd_set * aReadSet, fd_set * aWriteS
         return;
 
 #if CHIP_SYSTEM_CONFIG_POSIX_LOCKING
-    lThreadSelf = pthread_self();
+    pthread_t lThreadSelf = pthread_self();
 #endif // CHIP_SYSTEM_CONFIG_POSIX_LOCKING
 
     if (aSetSize > 0)
