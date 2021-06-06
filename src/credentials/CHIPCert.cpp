@@ -374,6 +374,11 @@ exit:
     return err;
 }
 
+
+// TODO: issue #3663 - Unbounded stack in src/setup_payload
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
 CHIP_ERROR ChipCertificateSet::VerifySignature(const ChipCertificateData * cert, const ChipCertificateData * caCert)
 {
     P256PublicKey caPublicKey;
