@@ -7,8 +7,8 @@ namespace mbed {
 
 int BSDSocket::open(int family, int type, InternetSocket * socket)
 {
-    nsapi_error_t err;
-    SocketAddress addr;
+    // nsapi_error_t err;
+    // SocketAddress addr;
 
     // switch (family)
     // {

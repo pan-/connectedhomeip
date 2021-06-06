@@ -40,6 +40,9 @@ CHIP_ERROR AdminPairingInfo::SetFabricLabel(const uint8_t * fabricLabel)
     return CHIP_NO_ERROR;
 }
 
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
 CHIP_ERROR AdminPairingInfo::StoreIntoKVS(PersistentStorageDelegate * kvs)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
@@ -104,6 +107,9 @@ exit:
     return err;
 }
 
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
 CHIP_ERROR AdminPairingInfo::FetchFromKVS(PersistentStorageDelegate * kvs)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
@@ -153,6 +159,9 @@ exit:
     return CHIP_NO_ERROR;
 }
 
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
 CHIP_ERROR AdminPairingInfo::DeleteFromKVS(PersistentStorageDelegate * kvs, AdminId id)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
