@@ -657,6 +657,7 @@ static int mbed_get_if_flags(unsigned int * flags)
     if (status == NSAPI_STATUS_LOCAL_UP || status == NSAPI_STATUS_GLOBAL_UP)
     {
         *flags |= IFF_UP;
+        *flags |= IFF_MULTICAST;
 
         err = net_if->get_ip_address(&ip);
         if (err != NSAPI_ERROR_OK)
