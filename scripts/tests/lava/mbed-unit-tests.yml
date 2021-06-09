@@ -3,7 +3,7 @@ job_name: test tag
 
 tags:
 - chip
-- artur-device
+- vincent-device
 
 secrets:
   GITHUB_TOKEN: _
