@@ -63,12 +63,17 @@ jobs:
           LAVA_SERVER_TOKEN: ${{ secrets.LAVA_SERVER_TOKEN }}
           LAVA_SERVER_URL: ${{ secrets.LAVA_SERVER_URL }}
         run: |
-          echo "Add id to lavacli"
           lavacli identities add --uri "$LAVA_SERVER_URL" --username lava-admin --token "$LAVA_SERVER_TOKEN" default
-          echo "Submit job to lava"
           LAVA_JOB_ID=`lavacli jobs submit $GITHUB_WORKSPACE/scripts/tests/lava/mbed-unit-tests.yml`
-          echo "job id: $LAVA_JOB_ID"
+          lavacli jobs logs $LAVA_JOB_NO | tee chip-unit-test.log
           lavacli jobs wait $LAVA_JOB_ID
+
+      - name: Upload unit test logs
+        uses: actions/upload-artifact@v2.2.3
+        with:
+          name: integration-test-log
+          path: chip-unit-test.log
+
 
   faillure-report:
     # The type of runner that the job will run on
