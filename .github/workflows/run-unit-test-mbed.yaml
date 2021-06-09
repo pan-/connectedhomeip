@@ -65,7 +65,7 @@ jobs:
         run: |
           lavacli identities add --uri "$LAVA_SERVER_URL" --username lava-admin --token "$LAVA_SERVER_TOKEN" default
           LAVA_JOB_ID=`lavacli jobs submit $GITHUB_WORKSPACE/scripts/tests/lava/mbed-unit-tests.yml`
-          lavacli jobs logs $LAVA_JOB_NO | tee chip-unit-test.log
+          lavacli jobs logs $LAVA_JOB_ID | tee chip-unit-test.log
           lavacli jobs wait $LAVA_JOB_ID
 
       - name: Upload unit test logs
