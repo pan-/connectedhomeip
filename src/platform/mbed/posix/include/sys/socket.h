@@ -325,7 +325,7 @@ extern const struct in6_addr in6addr_loopback;
 // #define SO_TYPE 0x1008         /* get socket type */
 // #define SO_CONTIMEO 0x1009     /* Unimplemented: connect timeout */
 // #define SO_NO_CHECK 0x100a     /* don't create UDP checksum */
-// #define SO_BINDTODEVICE 0x100b /* bind to device */
+#define SO_BINDTODEVICE 0x100b /* bind to device */
 
 /*
  * Structure used for manipulating linger option.
@@ -405,6 +405,8 @@ struct iovec
 /*
  * Options and types related to multicast membership
  */
+
+// IPv4 Multicast membership
 #define IP_ADD_MEMBERSHIP 3
 #define IP_DROP_MEMBERSHIP 4
 
@@ -413,6 +415,37 @@ typedef struct ip_mreq
     struct in_addr imr_multiaddr; /* IP multicast address of group */
     struct in_addr imr_interface; /* local IP address of interface */
 } ip_mreq;
+
+// IPv6 Multicast membership
+#define IPV6_ADD_MEMBERSHIP 12
+#define IPV6_DROP_MEMBERSHIP 13
+
+typedef struct ipv6_mreq {
+  struct in6_addr ipv6mr_multiaddr; /*  IPv6 multicast addr */
+  unsigned int    ipv6mr_interface; /*  interface index, or 0 */
+} ipv6_mreq;
+
+
+/*
+ * Options and types related to packet info
+ */
+
+// IPv4 packet info option
+#define IP_PKTINFO 8
+
+struct in_pktinfo {
+	int		ipi_ifindex;
+	struct in_addr	ipi_spec_dst;
+	struct in_addr	ipi_addr;
+};
+
+// IPv6 packet info option
+#define IPV6_PKTINFO 50
+
+struct in6_pktinfo {
+	struct in6_addr	ipi6_addr;
+	int		ipi6_ifindex;
+};
 
 int socket(int family, int type, int proto);
 int socketpair(int family, int type, int proto, int sv[2]);
