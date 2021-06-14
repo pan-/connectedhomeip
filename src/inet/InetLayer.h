@@ -100,6 +100,11 @@
 #include <semphr.h>
 #endif // CHIP_SYSTEM_CONFIG_FREERTOS_LOCKING
 
+#if CHIP_SYSTEM_CONFIG_MBED_LOCKING
+#include <rtos/Mutex.h>
+#include <rtos/Semaphore.h>
+#endif // CHIP_SYSTEM_CONFIG_POSIX_LOCKING
+
 #endif // INET_CONFIG_MAX_DROPPABLE_EVENTS
 
 #include <stdint.h>
