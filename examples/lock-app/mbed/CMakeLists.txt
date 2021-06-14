@@ -14,7 +14,7 @@ configure_file(
     @ONLY
 )
 
-set(MBED_PATH $ENV{MBED_OS_PATH} CACHE INTERNAL "")
+set(MBED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mbed-os CACHE INTERNAL "")
 set(MBED_CONFIG_PATH ${CMAKE_CURRENT_BINARY_DIR} CACHE INTERNAL "")
 set(APP_TARGET chip-mbed-lock-app-example)
 
@@ -42,7 +42,6 @@ target_sources(${APP_TARGET} PRIVATE
                ${CMAKE_CURRENT_SOURCE_DIR}/main/main.cpp               
                ${CMAKE_CURRENT_SOURCE_DIR}/main/ZclCallbacks.cpp
                ${LOCK_COMMON}/gen/attribute-size.cpp
-               ${APP_ROOT}/lock-common/gen/call-command-handler.cpp
                ${APP_ROOT}/lock-common/gen/callback-stub.cpp
                ${LOCK_COMMON}/gen/IMClusterCommandHandler.cpp
                ${MBED_COMMON}/util/LEDWidget.cpp
@@ -76,7 +75,6 @@ target_sources(${APP_TARGET} PRIVATE
                ${CHIP_ROOT}/src/app/clusters/network-commissioning/network-commissioning-ember.cpp
                ${CHIP_ROOT}/src/app/clusters/network-commissioning/network-commissioning.cpp
                ${CHIP_ROOT}/src/app/clusters/operational-credentials-server/operational-credentials-server.cpp
-               ${CHIP_ROOT}/src/app/clusters/trusted-root-certificates-server/trusted-root-certificates-server.cpp
                ${CHIP_ROOT}/src/app/clusters/on-off-server/on-off-server.cpp
 )
 
