@@ -26,6 +26,7 @@
 // by Mbed-OS in mbed_power_mgmt.h.
 #define sleep unistd_sleep
 #include <app/server/Server.h>
+#include <app/server/Mdns.h>
 #include <platform/CHIPDeviceLayer.h>
 #undef sleep
 
@@ -76,6 +77,17 @@ AppTask AppTask::sAppTask;
 
 int AppTask::Init()
 {
+    // Register the callback to init the MDNS server when connectivity is available 
+    PlatformMgr().AddEventHandler([] (const ChipDeviceEvent * event, intptr_t arg) {
+        // Restart the server whenever an ip address is renewed
+        if (event->Type == DeviceEventType::kInternetConnectivityChange) { 
+            if (event->InternetConnectivityChange.IPv4 == kConnectivity_Established ||
+                event->InternetConnectivityChange.IPv6 == kConnectivity_Established) {
+                chip::app::Mdns::StartServer();
+            }
+        }
+    }, 0);
+
     // Initialize LEDs
     sLockLED.Set(!BoltLockMgr().IsUnlocked());
 
