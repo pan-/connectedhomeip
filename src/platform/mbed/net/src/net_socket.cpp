@@ -5,6 +5,9 @@
 #include <net_socket.h>
 #include <rtos/EventFlags.h>
 
+#include <net_if.h>
+#include <ifaddrs.h>
+
 #include "common.h"
 
 #include "mbed-trace/mbed_trace.h"
@@ -50,15 +53,48 @@ struct mbed_socket_option_t
 
 static mbed_socket_option_t convert_socket_option(int level, int optname)
 {
-    switch (optname)
-    {
-    case SO_REUSEADDR:
-        return { level, NSAPI_REUSEADDR };
-    case SO_KEEPALIVE:
-        return { level, NSAPI_KEEPALIVE };
-    case SO_BROADCAST:
-        return { level, NSAPI_BROADCAST };
-    default:
+    if (level == SOL_SOCKET) {
+        switch (optname)
+        {
+        case SO_REUSEADDR:
+            return { NSAPI_SOCKET, NSAPI_REUSEADDR };
+        case SO_KEEPALIVE:
+            return { NSAPI_SOCKET, NSAPI_KEEPALIVE };
+        case SO_BROADCAST:
+            return { NSAPI_SOCKET, NSAPI_BROADCAST };
+        case SO_BINDTODEVICE: 
+            return { NSAPI_SOCKET, NSAPI_BIND_TO_DEVICE };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }        
+    } else if (level == IPPROTO_IP) { 
+        switch (optname)
+        {
+        case IP_ADD_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_ADD_MEMBERSHIP };
+        case IP_DROP_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_DROP_MEMBERSHIP };
+        case IP_PKTINFO:
+            return { NSAPI_SOCKET, NSAPI_PKTINFO };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }
+    } else if (level == IPPROTO_IPV6) { 
+        switch (optname)
+        {
+        case IPV6_ADD_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_ADD_MEMBERSHIP };
+        case IPV6_DROP_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_DROP_MEMBERSHIP };
+        case IPV6_PKTINFO:
+            return { NSAPI_SOCKET, NSAPI_PKTINFO };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }
+    } else {
         tr_warning("Passing unknown option %d to socket", optname);
         return { level, optname };
     }
@@ -797,7 +833,87 @@ int mbed_setsockopt(int fd, int level, int optname, const void * optval, socklen
 
     // Convert the option to NSAPI option alias
     auto opt = convert_socket_option(level, optname);
-    auto ret = socket->setsockopt(opt.level, opt.optname, optval, optlen);
+
+    int ret = -1;
+
+    // Handle the conversion of arguments for options that requires it
+    if (level == IPPROTO_IP && ((optname == IP_ADD_MEMBERSHIP) || (optname == IP_DROP_MEMBERSHIP))) {
+        if (optval == nullptr || optlen != sizeof(ip_mreq)) { 
+            tr_err("Set socket option invalid ip_mreq: level = %d, optname=%d, val=%p, len=%d => [%d]",
+                    level, optname, optval, optlen, ret);
+            set_errno(EINVAL);
+            return -1;
+        } 
+        const ip_mreq* bsd_opt = reinterpret_cast<const ip_mreq*>(optval);
+        nsapi_ip_mreq_t opt_val = {};
+        opt_val.imr_multiaddr.version = NSAPI_IPv4;
+        memcpy(opt_val.imr_multiaddr.bytes, bsd_opt->imr_multiaddr.s4_addr, sizeof(bsd_opt->imr_multiaddr.s4_addr));
+        opt_val.imr_interface.version = NSAPI_IPv4;
+        memcpy(opt_val.imr_interface.bytes, bsd_opt->imr_interface.s4_addr, sizeof(bsd_opt->imr_interface.s4_addr));
+
+        ret = socket->setsockopt(opt.level, opt.optname, &opt_val, sizeof(opt_val));
+    } else if (level == IPPROTO_IPV6 && ((optname == IPV6_ADD_MEMBERSHIP) || (optname == IPV6_DROP_MEMBERSHIP))) {
+        if (optval == nullptr || optlen != sizeof(ipv6_mreq)) { 
+            tr_err("Set socket option invalid ipv6_mreq: level = %d, optname=%d, val=%p, len=%d expected len=%d => [%d]",
+                    level, optname, optval, optlen, sizeof(ipv6_mreq), ret);
+            set_errno(EINVAL);
+            return -1;
+        } 
+        const ipv6_mreq* bsd_opt = reinterpret_cast<const ipv6_mreq*>(optval);
+
+        // Initialize the socket option and copy the multicast address in it 
+        nsapi_ip_mreq_t opt_val = {};
+        opt_val.imr_multiaddr.version = NSAPI_IPv6;
+        memcpy(opt_val.imr_multiaddr.bytes, bsd_opt->ipv6mr_multiaddr.s6_addr, sizeof(bsd_opt->ipv6mr_multiaddr.s6_addr));
+
+        // The POSIX and Mbed socket differ from here: The POSIX socket API contains 
+        // the interface ID while the Mbed API contains the interface IP address.
+        // The IP address of the interface is retrieved with the if_ functions.
+
+        // Retrieve the interface name 
+        char ifname[IF_NAMESIZE];
+        if (if_indextoname(bsd_opt->ipv6mr_interface, ifname) == nullptr) {
+            tr_error("Cannot retrieve network interface %d", bsd_opt->ipv6mr_interface);
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        // Retrieve the interface address 
+        struct ifaddrs* ifap;
+        if (mbed_getifaddrs(&ifap)) { 
+            tr_error("Cannot retrieve list of network interfaces");
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        while (ifap) { 
+            if (ifap->ifa_name && strcmp(ifap->ifa_name, ifname) == 0 && 
+                ifap->ifa_addr && ifap->ifa_addr->sa_family == AF_INET6
+            ) { 
+                opt_val.imr_interface.version = NSAPI_IPv6;
+                struct sockaddr_in6* addr = reinterpret_cast<struct sockaddr_in6*>(ifap->ifa_addr);
+                memcpy(opt_val.imr_interface.bytes, addr->sin6_addr.s6_addr, sizeof(addr->sin6_addr.s6_addr));
+                tr_debug("Sending interface address %s as part of socket option", 
+                        SocketAddress((void*)opt_val.imr_interface.bytes, NSAPI_IPv6).get_ip_address()
+                );
+                break;
+            }
+            ifap = ifap->ifa_next;
+        }
+        mbed_freeifaddrs(ifap);
+
+        // Return of the ip of the interface hasn't been set
+        if (opt_val.imr_interface.version != NSAPI_IPv6) { 
+            tr_error("Cannot retrieve IPv6 address for interface %d", bsd_opt->ipv6mr_interface);
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        ret = socket->setsockopt(opt.level, opt.optname, &opt_val, sizeof(opt_val));
+    }else {
+        ret = socket->setsockopt(opt.level, opt.optname, optval, optlen);
+    }
+
     if (ret < 0)
     {
         tr_err("Set socket option %s: level = %d, optname=%d, val=%p, len=%d => [%d]",
