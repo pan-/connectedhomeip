@@ -5,6 +5,10 @@
 #include <ifaddrs.h>
 #include <sys/ioctl.h>
 
+#include "mbed-trace/mbed_trace.h"
+
+#define TRACE_GROUP "NETS"
+
 static int mbed_get_if_flags(unsigned int * flags);
 struct if_nameindex * mbed_if_nameindex(void)
 {
@@ -88,7 +92,7 @@ char * mbed_if_indextoname(unsigned int ifindex, char * ifname)
         goto exit;
     }
 
-    for (p = net_list; p->if_name != NULL; p++)
+    for (p = net_list; p && p->if_name != NULL; p++)
     {
         if (p->if_index == ifindex)
         {
@@ -136,18 +140,68 @@ exit:
     return ret;
 }
 
+namespace { 
+
+struct mbed_ifaddrs
+{
+    struct ifaddrs posix_ifaddrs; 
+    char name[IF_NAMESIZE];
+    struct sockaddr address; 
+    struct sockaddr netmask;
+};
+
+struct ifaddrs *mbed_make_ifaddrs(NetworkInterface * net_if, bool ipv6) { 
+    // Allocate the ifaddrs
+    struct mbed_ifaddrs * result = (struct mbed_ifaddrs *) calloc(1, sizeof(struct mbed_ifaddrs));
+    if (result == NULL)
+    {
+        tr_err("OOM: ifaddrs");
+        set_errno(ENOBUFS);
+        return NULL;
+    }
+    memset(result, 0, sizeof(struct ifaddrs));
+
+    // Set the interface name 
+    result->posix_ifaddrs.ifa_name = net_if->get_interface_name(result->name);
+    if (result->posix_ifaddrs.ifa_name == NULL)
+    {
+        tr_error("Failed to create ifaddr, name not available");
+        set_errno(ENOTTY);
+        free(result);
+        return NULL;
+    }
+
+    nsapi_connection_status_t status = net_if->get_connection_status();
+    if (status == NSAPI_STATUS_LOCAL_UP || status == NSAPI_STATUS_GLOBAL_UP)
+    {
+        SocketAddress address;
+
+        if (ipv6) { 
+            net_if->get_ipv6_link_local_address(&address);
+        } else { 
+            net_if->get_ip_address(&address);
+        }
+        result->posix_ifaddrs.ifa_addr = &result->address;
+        convert_mbed_addr_to_bsd(result->posix_ifaddrs.ifa_addr, &address);
+
+        // This is not supported for IP v6 however, on LWIP the prefix is fixed to 64
+        if (!ipv6) { 
+            net_if->get_netmask(&address);
+            result->posix_ifaddrs.ifa_netmask = &result->netmask;
+            convert_mbed_addr_to_bsd(result->posix_ifaddrs.ifa_netmask, &address);
+        } 
+
+        mbed_get_if_flags(&result->posix_ifaddrs.ifa_flags);
+    }
+
+    return (struct ifaddrs *) result;
+}
+
+} // private namespace 
+
+
 int mbed_getifaddrs(struct ifaddrs ** ifap)
 {
-    char name[IF_NAMESIZE];
-    char * name_ptr = name;
-    SocketAddress ip;
-    SocketAddress netmask;
-    nsapi_version_t ipVersion;
-    nsapi_connection_status_t status;
-    nsapi_error_t err;
-
-    struct ifaddrs * tmp;
-
     if (ifap == NULL)
     {
         set_errno(ENOBUFS);
@@ -163,73 +217,26 @@ int mbed_getifaddrs(struct ifaddrs ** ifap)
         return -1;
     }
 
-    name_ptr = net_if->get_interface_name(name_ptr);
-    if (name_ptr == NULL)
-    {
-        set_errno(ENOTTY);
+    // Setup ifaddrs for IPv4 
+    struct ifaddrs * current_ifaddrs = mbed_make_ifaddrs(net_if, false);
+    if (!current_ifaddrs) { 
+        // errno is set by mbed_make_ifaddrs
         return -1;
     }
 
-    tmp = (struct ifaddrs *) calloc(1, sizeof(struct ifaddrs));
-    if (tmp == NULL)
-    {
-        set_errno(ENOBUFS);
+    current_ifaddrs->ifa_next = *ifap;
+    *ifap = current_ifaddrs;
+
+    // Setup ifaddrs for IPv6
+    current_ifaddrs = mbed_make_ifaddrs(net_if, true);
+    if (!current_ifaddrs) { 
+        // errno is set by mbed_make_ifaddrs
+        mbed_freeifaddrs(*ifap);
         return -1;
     }
-
-    memset(tmp, 0, sizeof(struct ifaddrs));
-
-    tmp->ifa_next = *ifap;
-    *ifap         = tmp;
-
-    tmp->ifa_name = (char *) malloc(IF_NAMESIZE);
-    if (tmp->ifa_name == NULL)
-    {
-        set_errno(ENOBUFS);
-        mbed_freeifaddrs(tmp);
-        return -1;
-    }
-
-    memset(tmp->ifa_name, 0, IF_NAMESIZE);
-
-    if (name_ptr != NULL)
-    {
-        strncpy(tmp->ifa_name, name_ptr, IF_NAMESIZE);
-    }
-
-    status = net_if->get_connection_status();
-    if (status == NSAPI_STATUS_LOCAL_UP || status == NSAPI_STATUS_GLOBAL_UP)
-    {
-        net_if->get_ip_address(&ip);
-        ipVersion = ip.get_ip_version();
-        net_if->get_netmask(&netmask);
-
-        tmp->ifa_addr = (struct sockaddr *) malloc(sizeof(struct sockaddr));
-        if (tmp->ifa_addr == NULL)
-        {
-            set_errno(ENOBUFS);
-            mbed_freeifaddrs(tmp);
-            return -1;
-        }
-
-        memset(tmp->ifa_addr, 0, sizeof(struct sockaddr));
-
-        convert_mbed_addr_to_bsd(tmp->ifa_addr, &ip);
-
-        tmp->ifa_netmask = (struct sockaddr *) malloc(sizeof(struct sockaddr));
-        if (tmp->ifa_netmask == NULL)
-        {
-            set_errno(ENOBUFS);
-            mbed_freeifaddrs(tmp);
-            return -1;
-        }
-
-        memset(tmp->ifa_netmask, 0, sizeof(struct sockaddr));
-
-        convert_mbed_addr_to_bsd(tmp->ifa_netmask, &netmask);
-
-        mbed_get_if_flags(&tmp->ifa_flags);
-    }
+    
+    current_ifaddrs->ifa_next = *ifap;
+    *ifap         = current_ifaddrs;
 
     return 0;
 }
@@ -241,27 +248,7 @@ void mbed_freeifaddrs(struct ifaddrs * ifp)
     while (ifp != NULL)
     {
         next = ifp->ifa_next;
-
-        if (ifp->ifa_name)
-        {
-            free(ifp->ifa_name);
-            ifp->ifa_name = NULL;
-        }
-
-        if (ifp->ifa_addr)
-        {
-            free(ifp->ifa_addr);
-            ifp->ifa_addr = NULL;
-        }
-
-        if (ifp->ifa_netmask)
-        {
-            free(ifp->ifa_netmask);
-            ifp->ifa_netmask = NULL;
-        }
-
         free(ifp);
-
         ifp = next;
     }
 
@@ -606,17 +593,14 @@ int mbed_inet_pton(sa_family_t family, const char * src, void * dst)
 
 static bool isBroadcast(SocketAddress ip, SocketAddress netmask)
 {
-    size_t bytesNumber = 0;
+    size_t bytesNumber = NSAPI_IPv4_BYTES;
     uint8_t *ip_bytes, *netmask_bytes;
     uint8_t mask, netmask_neg;
 
     if (ip.get_ip_version() == NSAPI_IPv6)
     {
-        bytesNumber = NSAPI_IPv6_BYTES;
-    }
-    else
-    {
-        bytesNumber = NSAPI_IPv4_BYTES;
+        // There is no broadcast address for IPv6
+        return false;
     }
 
     ip_bytes      = (uint8_t *) ip.get_ip_bytes();
@@ -657,6 +641,7 @@ static int mbed_get_if_flags(unsigned int * flags)
     if (status == NSAPI_STATUS_LOCAL_UP || status == NSAPI_STATUS_GLOBAL_UP)
     {
         *flags |= IFF_UP;
+        *flags |= IFF_MULTICAST;
 
         err = net_if->get_ip_address(&ip);
         if (err != NSAPI_ERROR_OK)

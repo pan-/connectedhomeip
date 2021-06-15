@@ -37,7 +37,7 @@ public:
     static constexpr uint16_t kChallengeSize   = Transport::PeerMessageCounter::kChallengeSize;
     static constexpr uint16_t kCounterSize     = 4;
     static constexpr uint16_t kSyncRespMsgSize = kChallengeSize + kCounterSize;
-    static constexpr uint32_t kSyncTimeoutMs   = 500;
+    static constexpr uint32_t kSyncTimeoutMs   = 10000;
 
     MessageCounterManager() : mExchangeMgr(nullptr) {}
     ~MessageCounterManager() override {}

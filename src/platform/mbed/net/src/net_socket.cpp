@@ -1,9 +1,13 @@
+#include <netsocket/MsgHeader.h>
 #include "BSDSocket.h"
 #include "EventFileHandle.h"
 #include "FdControlBlock.h"
 #include "OpenFileHandleAsFileDescriptor.h"
 #include <net_socket.h>
 #include <rtos/EventFlags.h>
+
+#include <net_if.h>
+#include <ifaddrs.h>
 
 #include "common.h"
 
@@ -50,15 +54,48 @@ struct mbed_socket_option_t
 
 static mbed_socket_option_t convert_socket_option(int level, int optname)
 {
-    switch (optname)
-    {
-    case SO_REUSEADDR:
-        return { level, NSAPI_REUSEADDR };
-    case SO_KEEPALIVE:
-        return { level, NSAPI_KEEPALIVE };
-    case SO_BROADCAST:
-        return { level, NSAPI_BROADCAST };
-    default:
+    if (level == SOL_SOCKET) {
+        switch (optname)
+        {
+        case SO_REUSEADDR:
+            return { NSAPI_SOCKET, NSAPI_REUSEADDR };
+        case SO_KEEPALIVE:
+            return { NSAPI_SOCKET, NSAPI_KEEPALIVE };
+        case SO_BROADCAST:
+            return { NSAPI_SOCKET, NSAPI_BROADCAST };
+        case SO_BINDTODEVICE: 
+            return { NSAPI_SOCKET, NSAPI_BIND_TO_DEVICE };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }        
+    } else if (level == IPPROTO_IP) { 
+        switch (optname)
+        {
+        case IP_ADD_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_ADD_MEMBERSHIP };
+        case IP_DROP_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_DROP_MEMBERSHIP };
+        case IP_PKTINFO:
+            return { NSAPI_SOCKET, NSAPI_PKTINFO };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }
+    } else if (level == IPPROTO_IPV6) { 
+        switch (optname)
+        {
+        case IPV6_ADD_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_ADD_MEMBERSHIP };
+        case IPV6_DROP_MEMBERSHIP:
+            return { NSAPI_SOCKET, NSAPI_DROP_MEMBERSHIP };
+        case IPV6_PKTINFO:
+            return { NSAPI_SOCKET, NSAPI_PKTINFO };
+        default:
+            tr_warning("Passing unknown option %d to socket", optname);
+            return { level, optname };
+        }
+    } else {
         tr_warning("Passing unknown option %d to socket", optname);
         return { level, optname };
     }
@@ -199,7 +236,7 @@ int mbed_connect(int fd, const struct sockaddr * addr, socklen_t addrlen)
     }
 
     tr_info("Connect fd %d address %s", fd, sockAddr.get_ip_address());
-    auto ret = socket->getNetSocket()->connect(sockAddr);
+    auto ret = socket->connect(sockAddr);
     if ((ret != NSAPI_ERROR_OK) && (ret != NSAPI_ERROR_UNSUPPORTED))
     {
         tr_err("Connect failed [%d]", ret);
@@ -224,7 +261,6 @@ int mbed_connect(int fd, const struct sockaddr * addr, socklen_t addrlen)
     if (!socket->is_blocking())
     {
         tr_debug("Connect not blocking\n");
-        socket->write(NULL, 0);
         set_errno(EINPROGRESS);
         return -1;
     }
@@ -279,8 +315,6 @@ int mbed_accept(int fd, struct sockaddr * addr, socklen_t * addrlen)
         return -1;
     }
 
-    socket->read(NULL, 0);
-
     if (addr == nullptr || addrlen == nullptr)
     {
         set_errno(EINVAL);
@@ -294,7 +328,7 @@ int mbed_accept(int fd, struct sockaddr * addr, socklen_t * addrlen)
     }
 
     tr_info("Connection accept for fd %d socket", fd);
-    newSocket = socket->getNetSocket()->accept(&error);
+    newSocket = socket->accept(&error);
     if ((error != NSAPI_ERROR_OK) && (error != NSAPI_ERROR_UNSUPPORTED))
     {
         tr_err("Accept failed [%d]", error);
@@ -369,10 +403,14 @@ ssize_t mbed_send(int fd, const void * buf, size_t len, int flags)
     }
 
     tr_info("Socket fd %d send %d bytes", fd, len);
-    ret = socket->getNetSocket()->send(buf, len);
+    ret = socket->send(buf, len);
     if (ret < 0)
     {
-        tr_err("Send failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send would block", fd);
+        } else { 
+            tr_err("Send failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -388,10 +426,6 @@ ssize_t mbed_send(int fd, const void * buf, size_t len, int flags)
             set_errno(ENOBUFS);
         }
         ret = -1;
-    }
-    else
-    {
-        socket->write(NULL, 0);
     }
 
     if (flags & MSG_DONTWAIT)
@@ -442,10 +476,14 @@ ssize_t mbed_sendto(int fd, const void * buf, size_t len, int flags, const struc
     }
 
     tr_info("Socket fd %d send %d bytes to %s", fd, len, sockAddr.get_ip_address());
-    ret = socket->getNetSocket()->sendto(sockAddr, buf, len);
+    ret = socket->sendto(sockAddr, buf, len);
     if (ret < 0)
     {
-        tr_err("Send to failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send to would block", fd);
+        } else { 
+            tr_err("Send to failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -458,10 +496,6 @@ ssize_t mbed_sendto(int fd, const void * buf, size_t len, int flags, const struc
             set_errno(ENOBUFS);
         }
         ret = -1;
-    }
-    else
-    {
-        socket->write(NULL, 0);
     }
 
     if (flags & MSG_DONTWAIT)
@@ -477,7 +511,9 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
     ssize_t ret;
     bool blockingState;
     SocketAddress sockAddr;
-    ssize_t total = 0;
+    nsapi_pktinfo pkt_info;
+    nsapi_msghdr_t* control = nullptr;
+    nsapi_size_t control_size = 0;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -497,6 +533,41 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
         return 0;
     }
 
+    if (message->msg_iovlen != 1) { 
+        // FIXME: concatenate buffers of the message
+        set_errno(ENOTSUP);
+        return -1;
+    }
+
+    // Parse header and retrieve associated packet info
+    for (cmsghdr * controlHdr = CMSG_FIRSTHDR(message); controlHdr != nullptr; controlHdr = CMSG_NXTHDR(message, controlHdr))
+    {
+        // Prepare the packet info header
+        pkt_info.hdr.len = sizeof(pkt_info);
+        pkt_info.hdr.level = NSAPI_SOCKET;
+        pkt_info.hdr.type = NSAPI_PKTINFO;
+
+        if (controlHdr->cmsg_level == IPPROTO_IP && controlHdr->cmsg_type == IP_PKTINFO)
+        {
+            struct in_pktinfo * inPktInfo = reinterpret_cast<struct in_pktinfo *> CMSG_DATA(controlHdr);
+            pkt_info.ipi_ifindex = inPktInfo->ipi_ifindex;
+            pkt_info.ipi_addr = SocketAddress(inPktInfo->ipi_spec_dst.s4_addr16, NSAPI_IPv4).get_addr();
+            control = reinterpret_cast<decltype(control)>(&pkt_info);
+            control_size = sizeof(pkt_info);
+            tr_info("Send packet: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
+            break;
+        } else if (controlHdr->cmsg_level == IPPROTO_IPV6 && controlHdr->cmsg_type == IPV6_PKTINFO)
+        {
+            struct in6_pktinfo * in6PktInfo = reinterpret_cast<struct in6_pktinfo *> CMSG_DATA(controlHdr);
+            pkt_info.ipi_ifindex = in6PktInfo->ipi6_ifindex;
+            pkt_info.ipi_addr = SocketAddress(in6PktInfo->ipi6_addr.s6_addr, NSAPI_IPv6).get_addr();
+            control = reinterpret_cast<decltype(control)>(&pkt_info);
+            control_size = sizeof(pkt_info);
+            tr_info("Send packet: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
+            break;
+        }
+    }
+
     if (flags & MSG_DONTWAIT)
     {
         blockingState = socket->is_blocking();
@@ -510,43 +581,40 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
     }
 
     tr_info("Socket fd %d send message to %s", fd, sockAddr.get_ip_address());
-    for (size_t i = 0; i < message->msg_iovlen; i++)
+    ret = socket->sendmsg(sockAddr, (void *) message->msg_iov[0].iov_base, message->msg_iov[0].iov_len, control, control_size);
+    if (ret < 0)
     {
-        ret = socket->getNetSocket()->sendto(sockAddr, (void *) message->msg_iov[i].iov_base, message->msg_iov[i].iov_len);
-        if (ret < 0)
-        {
-            switch (ret)
-            {
-            case NSAPI_ERROR_NO_SOCKET:
-                set_errno(ENOTSOCK);
-                break;
-            case NSAPI_ERROR_WOULD_BLOCK:
-                set_errno(EWOULDBLOCK);
-                break;
-            default:
-                set_errno(ENOBUFS);
-            }
-            total = -1;
-            break;
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send msg would block", fd);
+        } else { 
+            tr_err("Send msg failed [%d]", ret);
         }
-        total += ret;
-    }
 
-    socket->write(NULL, 0);
+        switch (ret)
+        {
+        case NSAPI_ERROR_NO_SOCKET:
+            set_errno(ENOTSOCK);
+            break;
+        case NSAPI_ERROR_WOULD_BLOCK:
+            set_errno(EWOULDBLOCK);
+            break;
+        default:
+            set_errno(ENOBUFS);
+        }
+    }
 
     if (flags & MSG_DONTWAIT)
     {
         socket->set_blocking(blockingState);
     }
 
-    return total;
+    return ret;
 }
 
 ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
 {
     ssize_t ret;
     bool blockingState;
-    SocketAddress peerAddr;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -572,10 +640,14 @@ ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
         socket->set_blocking(false);
     }
 
-    ret = socket->getNetSocket()->recv(buf, max_len);
+    ret = socket->recv(buf, max_len);
     if (ret < 0)
     {
-        tr_err("Receive failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive would block", fd);
+        } else { 
+            tr_err("Receive failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -591,9 +663,9 @@ ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
     }
     else
     {
+        SocketAddress peerAddr;
         socket->getNetSocket()->getpeername(&peerAddr);
-        tr_info("Socket fd %d recevied %d bytes from %s", fd, ret, peerAddr.get_ip_address());
-        socket->read(NULL, 0);
+        tr_info("Socket fd %d received %d bytes from %s", fd, ret, peerAddr.get_ip_address());
     }
 
     if (flags & MSG_DONTWAIT)
@@ -634,10 +706,14 @@ ssize_t mbed_recvfrom(int fd, void * buf, size_t max_len, int flags, struct sock
         socket->set_blocking(false);
     }
 
-    ret = socket->getNetSocket()->recvfrom(&sockAddr, buf, max_len);
+    ret = socket->recvfrom(&sockAddr, buf, max_len);
     if (ret < 0)
     {
-        tr_err("Receive from failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive would block", fd);
+        } else { 
+            tr_err("Receive failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -654,7 +730,6 @@ ssize_t mbed_recvfrom(int fd, void * buf, size_t max_len, int flags, struct sock
     else
     {
         tr_info("Socket fd %d recevied %d bytes from %s", fd, ret, sockAddr.get_ip_address());
-        socket->read(NULL, 0);
         if (src_addr != nullptr)
         {
             if (convert_mbed_addr_to_bsd(src_addr, &sockAddr))
@@ -677,7 +752,9 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
 {
     bool blockingState;
     SocketAddress sockAddr;
-    ssize_t total = 0;
+    nsapi_pktinfo_t pkt_info;
+    nsapi_msghdr_t* control = nullptr;
+    nsapi_size_t control_size = 0;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -697,46 +774,55 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
         return 0;
     }
 
+    if (message->msg_iovlen != 1) { 
+        // FIXME: concatenate buffers of the message
+        set_errno(ENOTSUP);
+        return -1;
+    }
+
+    if (message->msg_control && message->msg_controllen >= std::max(sizeof(in_pktinfo), sizeof(in6_pktinfo))) { 
+        control = reinterpret_cast<decltype(control)>(&pkt_info);
+        control_size = sizeof(pkt_info);
+        memset(control, 0, control_size);
+        memset(message->msg_control, 0, message->msg_controllen);
+    }
+
     if (flags & MSG_DONTWAIT)
     {
         blockingState = socket->is_blocking();
         socket->set_blocking(false);
     }
 
-    for (size_t i = 0; i < message->msg_iovlen; i++)
+    auto ret = socket->recvmsg(&sockAddr, (void *) message->msg_iov[0].iov_base, message->msg_iov[0].iov_len, control, control_size);
+    if (ret < 0)
     {
-        auto ret = socket->getNetSocket()->recvfrom(&sockAddr, (void *) message->msg_iov[i].iov_base, message->msg_iov[i].iov_len);
-        if (ret < 0)
-        {
-            tr_err("Receive from failed [%d]", ret);
-            switch (ret)
-            {
-            case NSAPI_ERROR_NO_SOCKET:
-                set_errno(ENOTSOCK);
-                break;
-            case NSAPI_ERROR_WOULD_BLOCK:
-                set_errno(EWOULDBLOCK);
-                break;
-            default:
-                set_errno(ENOBUFS);
-            }
-            total = -1;
-            break;
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive msg would block", fd);
+        } else { 
+            tr_err("Receive mag failed [%d]", ret);
         }
-        total += ret;
-        tr_info("Socket fd %d received %d bytes message from %s", fd, ret, sockAddr.get_ip_address());
+        switch (ret)
+        {
+        case NSAPI_ERROR_NO_SOCKET:
+            set_errno(ENOTSOCK);
+            break;
+        case NSAPI_ERROR_WOULD_BLOCK:
+            set_errno(EWOULDBLOCK);
+            break;
+        default:
+            set_errno(ENOBUFS);
+        }
     }
+    tr_info("Socket fd %d received %d bytes message from %s", fd, ret, sockAddr.get_ip_address());
 
-    socket->read(NULL, 0);
-
-    if (total != -1)
+    if (ret != -1)
     {
         if (message->msg_name != nullptr)
         {
             if (convert_mbed_addr_to_bsd((sockaddr *) message->msg_name, &sockAddr))
             {
                 set_errno(EINVAL);
-                total = -1;
+                ret = -1;
             }
         }
     }
@@ -746,7 +832,49 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
         socket->set_blocking(blockingState);
     }
 
-    return total;
+    nsapi_pktinfo_t *pkt_info_ptr = nullptr;
+    if (control) {
+        MsgHeaderIterator it(control, control_size);
+        while (it.has_next()) { 
+            auto *hdr = it.next();
+            if (hdr->level == NSAPI_SOCKET && hdr->type == NSAPI_PKTINFO) { 
+                pkt_info_ptr = reinterpret_cast<nsapi_pktinfo_t*>(hdr);
+                break;
+            }
+        }
+    }
+
+    // retrieve packet info and fill it in msg_control
+    if (control && ret >= 0 && pkt_info_ptr) {
+        pkt_info = *pkt_info_ptr;
+        struct cmsghdr * hdr = CMSG_FIRSTHDR(message);
+
+        if (pkt_info.ipi_addr.version == NSAPI_IPv4) { 
+            hdr->cmsg_level = IPPROTO_IP;
+            hdr->cmsg_type  = IP_PKTINFO;
+            hdr->cmsg_len   = CMSG_LEN(sizeof(in_pktinfo));
+
+            struct in_pktinfo * pktInfo = reinterpret_cast<struct in_pktinfo *> CMSG_DATA(hdr);
+            pktInfo->ipi_ifindex  = static_cast<decltype(pktInfo->ipi_ifindex)>(pkt_info.ipi_ifindex);
+            memcpy(pktInfo->ipi_spec_dst.s4_addr, pkt_info.ipi_addr.bytes, sizeof(pktInfo->ipi_spec_dst.s4_addr));
+
+            message->msg_controllen = CMSG_SPACE(sizeof(in_pktinfo));
+            tr_debug("Received packet: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
+        } else if (pkt_info.ipi_addr.version == NSAPI_IPv6) {
+            hdr->cmsg_level = IPPROTO_IPV6;
+            hdr->cmsg_type  = IPV6_PKTINFO;
+            hdr->cmsg_len   = CMSG_LEN(sizeof(in6_pktinfo));
+
+            struct in6_pktinfo * pktInfo = reinterpret_cast<struct in6_pktinfo *> CMSG_DATA(hdr);
+            pktInfo->ipi6_ifindex  = static_cast<decltype(pktInfo->ipi6_ifindex)>(pkt_info.ipi_ifindex);
+            memcpy(pktInfo->ipi6_addr.s6_addr, pkt_info.ipi_addr.bytes, sizeof(pktInfo->ipi6_addr.s6_addr));
+
+            message->msg_controllen = CMSG_SPACE(sizeof(in6_pktinfo));
+            tr_debug("Received packet: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
+        }
+    }
+
+    return ret;
 }
 
 int mbed_getsockopt(int fd, int level, int optname, void * optval, socklen_t * optlen)
@@ -797,7 +925,87 @@ int mbed_setsockopt(int fd, int level, int optname, const void * optval, socklen
 
     // Convert the option to NSAPI option alias
     auto opt = convert_socket_option(level, optname);
-    auto ret = socket->setsockopt(opt.level, opt.optname, optval, optlen);
+
+    int ret = -1;
+
+    // Handle the conversion of arguments for options that requires it
+    if (level == IPPROTO_IP && ((optname == IP_ADD_MEMBERSHIP) || (optname == IP_DROP_MEMBERSHIP))) {
+        if (optval == nullptr || optlen != sizeof(ip_mreq)) { 
+            tr_err("Set socket option invalid ip_mreq: level = %d, optname=%d, val=%p, len=%d => [%d]",
+                    level, optname, optval, optlen, ret);
+            set_errno(EINVAL);
+            return -1;
+        } 
+        const ip_mreq* bsd_opt = reinterpret_cast<const ip_mreq*>(optval);
+        nsapi_ip_mreq_t opt_val = {};
+        opt_val.imr_multiaddr.version = NSAPI_IPv4;
+        memcpy(opt_val.imr_multiaddr.bytes, bsd_opt->imr_multiaddr.s4_addr, sizeof(bsd_opt->imr_multiaddr.s4_addr));
+        opt_val.imr_interface.version = NSAPI_IPv4;
+        memcpy(opt_val.imr_interface.bytes, bsd_opt->imr_interface.s4_addr, sizeof(bsd_opt->imr_interface.s4_addr));
+
+        ret = socket->setsockopt(opt.level, opt.optname, &opt_val, sizeof(opt_val));
+    } else if (level == IPPROTO_IPV6 && ((optname == IPV6_ADD_MEMBERSHIP) || (optname == IPV6_DROP_MEMBERSHIP))) {
+        if (optval == nullptr || optlen != sizeof(ipv6_mreq)) { 
+            tr_err("Set socket option invalid ipv6_mreq: level = %d, optname=%d, val=%p, len=%d expected len=%d => [%d]",
+                    level, optname, optval, optlen, sizeof(ipv6_mreq), ret);
+            set_errno(EINVAL);
+            return -1;
+        } 
+        const ipv6_mreq* bsd_opt = reinterpret_cast<const ipv6_mreq*>(optval);
+
+        // Initialize the socket option and copy the multicast address in it 
+        nsapi_ip_mreq_t opt_val = {};
+        opt_val.imr_multiaddr.version = NSAPI_IPv6;
+        memcpy(opt_val.imr_multiaddr.bytes, bsd_opt->ipv6mr_multiaddr.s6_addr, sizeof(bsd_opt->ipv6mr_multiaddr.s6_addr));
+
+        // The POSIX and Mbed socket differ from here: The POSIX socket API contains 
+        // the interface ID while the Mbed API contains the interface IP address.
+        // The IP address of the interface is retrieved with the if_ functions.
+
+        // Retrieve the interface name 
+        char ifname[IF_NAMESIZE];
+        if (if_indextoname(bsd_opt->ipv6mr_interface, ifname) == nullptr) {
+            tr_error("Cannot retrieve network interface %d", bsd_opt->ipv6mr_interface);
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        // Retrieve the interface address 
+        struct ifaddrs* ifap;
+        if (mbed_getifaddrs(&ifap)) { 
+            tr_error("Cannot retrieve list of network interfaces");
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        while (ifap) { 
+            if (ifap->ifa_name && strcmp(ifap->ifa_name, ifname) == 0 && 
+                ifap->ifa_addr && ifap->ifa_addr->sa_family == AF_INET6
+            ) { 
+                opt_val.imr_interface.version = NSAPI_IPv6;
+                struct sockaddr_in6* addr = reinterpret_cast<struct sockaddr_in6*>(ifap->ifa_addr);
+                memcpy(opt_val.imr_interface.bytes, addr->sin6_addr.s6_addr, sizeof(addr->sin6_addr.s6_addr));
+                tr_debug("Sending interface address %s as part of socket option", 
+                        SocketAddress((void*)opt_val.imr_interface.bytes, NSAPI_IPv6).get_ip_address()
+                );
+                break;
+            }
+            ifap = ifap->ifa_next;
+        }
+        mbed_freeifaddrs(ifap);
+
+        // Return of the ip of the interface hasn't been set
+        if (opt_val.imr_interface.version != NSAPI_IPv6) { 
+            tr_error("Cannot retrieve IPv6 address for interface %d", bsd_opt->ipv6mr_interface);
+            set_errno(EINVAL);
+            return -1;
+        }
+
+        ret = socket->setsockopt(opt.level, opt.optname, &opt_val, sizeof(opt_val));
+    }else {
+        ret = socket->setsockopt(opt.level, opt.optname, optval, optlen);
+    }
+
     if (ret < 0)
     {
         tr_err("Set socket option %s: level = %d, optname=%d, val=%p, len=%d => [%d]",

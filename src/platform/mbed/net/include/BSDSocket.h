@@ -28,6 +28,7 @@ namespace mbed {
 
 struct BSDSocket : public FileHandle
 {
+    using counter_type = uint32_t;
     using flags_type = uint32_t;
     enum
     {
@@ -61,14 +62,62 @@ struct BSDSocket : public FileHandle
     InternetSocket * getNetSocket();
     int getSocketType();
 
+    // Implement some bit of the socket API to preserve the state of flags 
+    // Do not use getSocket to directly call them.
+    nsapi_size_or_error_t recv(void *buffer, nsapi_size_t size);
+    nsapi_size_or_error_t recvfrom(SocketAddress *address, void *buffer, nsapi_size_t size);
+    nsapi_size_or_error_t recvmsg(SocketAddress *address, void *buffer, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size);
+    Socket *accept(nsapi_error_t *error);
+    nsapi_size_or_error_t send(const void *data, nsapi_size_t size);
+    nsapi_size_or_error_t sendto(const SocketAddress &address, const void *data, nsapi_size_t size);
+    nsapi_size_or_error_t sendmsg(const SocketAddress &address, const void *data, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size);
+    nsapi_error_t connect(const SocketAddress &address);
+
     SocketAddress socketName;
 
 private:
+
+    // FLAGS STATE NOTES
+    // -----------------
+    // To prevent the socket as beeing seen as active, the POLLIN or POLLOUT flags 
+    // are unset when the operation reurns NSAPI_WOULD_BLOCK.  
+    // When the sigio callback of the socket is called, the flags are set to 
+    // POLLIN | POLLOUT as we now _some_ operation is available on the socket 
+    // but we don't know which.
+    // There could be a race condition if the sigio callback is called between 
+    // after a send or recv return and before the flag in this object has been 
+    // cleared. 
+    // The natural option would be to hold a mutex during the call to send/recv
+    // but this is not applicable as the sigio callback would have to acquire 
+    // the same mutex. This can cause a deadlock if the sigio callback is called 
+    // from another thread. 
+    // Instead we use an optimistic approach. This class maintains a counter 
+    // which is used to detect if the poll flags have been updated while doing 
+    // another operation.
+    // The sigio callbacks set them unconditionaly while the send/recv function
+    // sets them only they haven't been touched.
+    // At worst, the socket will appear as being ready while it doesn't which 
+    // will trigger another recv/send that will correctly mark the operation 
+    // as blocked. 
+
+    // return the counter associated with the last change to flags 
+    // returned by poll 
+    counter_type get_poll_counter();
+
+    // mark read and write as blocking
+    bool set_write_as_blocking(counter_type counter);
+    bool set_read_as_blocking(counter_type counter);
+
+    void reset_flags();
+    bool try_update_flags(flags_type flags, counter_type counter);
+    void update_flags(flags_type flags);
+
     InternetSocket * _socket = nullptr;
     int _fd                  = -1;
     int _type;
     Callback<void()> _callback      = nullptr;
-    mstd::atomic<flags_type> _flags = { 0 };
+    flags_type _flags               = 0;
+    counter_type _counter           = 0;
     bool _blocking                  = true;
     bool _inputEnable               = true;
     bool _outputEnable              = true;

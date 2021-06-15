@@ -798,8 +798,8 @@ CHIP_ERROR BLEManagerImpl::StartAdvertising(void)
     mbed_err = gap.startAdvertising(ble::LEGACY_ADVERTISING_HANDLE);
     VerifyOrExit(mbed_err == BLE_ERROR_NONE, err = CHIP_ERROR_INTERNAL);
 
-    ChipLogDetail(DeviceLayer, "Advertising started, type: 0x%x (%sconnectable), interval: [%d:%d] ms, device name: %s)",
-                  adv_params.getType(), connectable ? "" : "non-", adv_params.getMinPrimaryInterval().valueInMs(),
+    ChipLogDetail(DeviceLayer, "Advertising started, type: 0x%x (%sconnectable), interval: [%lu:%lu] ms, device name: %s)",
+                  adv_params.getType().value(), connectable ? "" : "non-", adv_params.getMinPrimaryInterval().valueInMs(),
                   adv_params.getMaxPrimaryInterval().valueInMs(), mDeviceName);
 
 exit:

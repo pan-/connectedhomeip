@@ -26,15 +26,16 @@
 // by Mbed-OS in mbed_power_mgmt.h.
 #define sleep unistd_sleep
 #include <app/server/Server.h>
+#include <app/server/Mdns.h>
 #include <platform/CHIPDeviceLayer.h>
 #undef sleep
 
 #include <support/logging/CHIPLogging.h>
 
 // ZAP -- ZCL Advanced Platform
-#include "gen/attribute-id.h"
-#include "gen/attribute-type.h"
-#include "gen/cluster-id.h"
+#include <app/common/gen/attribute-id.h>
+#include <app/common/gen/attribute-type.h>
+#include <app/common/gen/cluster-id.h>
 #include <app/util/attribute-storage.h>
 
 // mbed-os headers
@@ -76,6 +77,17 @@ AppTask AppTask::sAppTask;
 
 int AppTask::Init()
 {
+    // Register the callback to init the MDNS server when connectivity is available 
+    PlatformMgr().AddEventHandler([] (const ChipDeviceEvent * event, intptr_t arg) {
+        // Restart the server whenever an ip address is renewed
+        if (event->Type == DeviceEventType::kInternetConnectivityChange) { 
+            if (event->InternetConnectivityChange.IPv4 == kConnectivity_Established ||
+                event->InternetConnectivityChange.IPv6 == kConnectivity_Established) {
+                chip::app::Mdns::StartServer();
+            }
+        }
+    }, 0);
+
     // Initialize LEDs
     sLockLED.Set(!BoltLockMgr().IsUnlocked());
 
@@ -396,7 +408,7 @@ void AppTask::UpdateClusterState()
 
     // write the new on/off value
     EmberAfStatus status = emberAfWriteAttribute(1, ZCL_ON_OFF_CLUSTER_ID, ZCL_ON_OFF_ATTRIBUTE_ID, CLUSTER_MASK_SERVER,
-                                                 (uint8_t *) &newValue, ZCL_BOOLEAN_ATTRIBUTE_TYPE);
+                                                 &newValue, ZCL_BOOLEAN_ATTRIBUTE_TYPE);
     if (status != EMBER_ZCL_STATUS_SUCCESS)
     {
         ChipLogError(NotSpecified, "ZCL update failed: %x", status);

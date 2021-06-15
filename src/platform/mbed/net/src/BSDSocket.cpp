@@ -1,4 +1,5 @@
 #include "BSDSocket.h"
+#include "platform/CriticalSectionLock.h"
 #include "mbed-trace/mbed_trace.h"
 
 #define TRACE_GROUP "BSDS"
@@ -7,37 +8,6 @@ namespace mbed {
 
 int BSDSocket::open(int family, int type, InternetSocket * socket)
 {
-    nsapi_error_t err;
-    SocketAddress addr;
-
-    // switch (family)
-    // {
-    // case MBED_IPV4_SOCKET: {
-    //     err = NetworkInterface::get_default_instance()->get_ip_address(&addr);
-    //     if ((err != NSAPI_ERROR_OK) || (addr.get_ip_version() != NSAPI_IPv4))
-    //     {
-    //         tr_err("IPv4 not supported");
-    //         set_errno(ESOCKTNOSUPPORT);
-    //         return -1;
-    //     }
-    // }
-    // break;
-    // case MBED_IPV6_SOCKET: {
-    //     err = NetworkInterface::get_default_instance()->get_ipv6_link_local_address(&addr);
-    //     if ((err != NSAPI_ERROR_OK) || (addr.get_ip_version() != NSAPI_IPv6))
-    //     {
-    //         tr_err("IPv6 not supported");
-    //         set_errno(ESOCKTNOSUPPORT);
-    //         return -1;
-    //     }
-    // }
-    // break;
-    // default:
-    //     tr_err("Socket family not supported");
-    //     set_errno(ESOCKTNOSUPPORT);
-    //     return -1;
-    // };
-
     if (socket != nullptr)
     {
         _socket            = socket;
@@ -72,20 +42,13 @@ int BSDSocket::open(int family, int type, InternetSocket * socket)
 
     _type = type;
 
-    _flags.store(0);
+    reset_flags();
+
     _socket->sigio([&]() {
         tr_debug("Socket %d event", _fd);
-        auto current = _flags.load();
-        if (current & POLLOUT)
-        {
-            current &= ~POLLOUT;
-        }
-
-        if (!(current & POLLIN))
-        {
-            current |= POLLIN;
-        }
-        _flags.store(current);
+        // We don't know what change set both POLLIN and POLLOUT
+        update_flags(POLLOUT | POLLIN);
+        
         if (_callback)
         {
             _callback();
@@ -126,7 +89,7 @@ int BSDSocket::close()
     _fd                = -1;
     _callback          = nullptr;
     _factory_allocated = false;
-    _flags.store(0);
+    reset_flags();
     if (socketName)
     {
         socketName.set_ip_bytes(nullptr, NSAPI_UNSPEC);
@@ -136,34 +99,32 @@ int BSDSocket::close()
 
 ssize_t BSDSocket::read(void * buffer, size_t size)
 {
-    tr_info("Read from socket fd %d", _fd);
-    while (true)
-    {
-        auto current = _flags.load();
-        auto success = _flags.compare_exchange_weak(current, (current & ~POLLIN));
-        if (success)
-        {
-            break;
-        }
-    }
-
+    // placeholder for the file API
     return 0;
+}
+
+BSDSocket::counter_type BSDSocket::get_poll_counter()
+{
+    mbed::CriticalSectionLock lock;
+    return _counter;
+}
+
+bool BSDSocket::set_read_as_blocking(counter_type counter)
+{
+    auto current = _flags;
+    return try_update_flags(current & ~POLLIN, counter);
 }
 
 ssize_t BSDSocket::write(const void * buffer, size_t size)
 {
-    tr_info("Write to socket fd %d", _fd);
-    while (true)
-    {
-        auto current = _flags.load();
-        auto success = _flags.compare_exchange_weak(current, (current | POLLOUT));
-        if (success)
-        {
-            break;
-        }
-    }
-
+    // placeholder for the file API
     return 0;
+}
+
+bool BSDSocket::set_write_as_blocking(counter_type counter)
+{
+    auto current = _flags;
+    return try_update_flags(current & ~POLLIN, counter);
 }
 
 off_t BSDSocket::seek(off_t offset, int whence)
@@ -214,14 +175,15 @@ bool BSDSocket::is_output_enable()
 
 short BSDSocket::poll(short events) const
 {
-    auto state = _flags.load();
+    mbed::CriticalSectionLock lock;
+    auto state = _flags;
     return (state & events);
 }
 
 void BSDSocket::sigio(Callback<void()> func)
 {
     _callback = func;
-    if (_callback && poll(POLLIN))
+    if (_callback && poll(POLLIN | POLLOUT))
     {
         _callback();
     }
@@ -240,6 +202,112 @@ InternetSocket * BSDSocket::getNetSocket()
 int BSDSocket::getSocketType()
 {
     return _type;
+}
+
+nsapi_size_or_error_t BSDSocket::recv(void *buffer, nsapi_size_t size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->recv(buffer, size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_read_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::recvfrom(SocketAddress *address, void *buffer, nsapi_size_t size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->recvfrom(address, buffer, size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_read_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::recvmsg(SocketAddress *address, void *buffer, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->recvmsg(address, buffer, size, control, control_size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_read_as_blocking(counter);
+    }
+    return result;
+}
+
+Socket *BSDSocket::accept(nsapi_error_t *error)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->accept(error);
+    if (*error == NSAPI_ERROR_OK) { 
+        set_read_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::send(const void *data, nsapi_size_t size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->send(data, size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_write_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::sendto(const SocketAddress &address, const void *data, nsapi_size_t size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->sendto(address, data, size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_write_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::sendmsg(const SocketAddress &address, const void *data, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->sendmsg(address, data, size, control, control_size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_write_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_error_t BSDSocket::connect(const SocketAddress &address)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->connect(address);
+    if ((result == NSAPI_ERROR_OK || result == NSAPI_ERROR_UNSUPPORTED) && !is_blocking()) { 
+        set_write_as_blocking(counter);
+    }
+    return result;
+}
+
+void BSDSocket::reset_flags()
+{
+    mbed::CriticalSectionLock lock;
+    _flags = 0;
+    _counter = 0;
+}
+
+bool BSDSocket::try_update_flags(flags_type flags, counter_type counter)
+{
+    mbed::CriticalSectionLock lock;
+    if (counter != _counter) { 
+        return false;
+    } 
+
+    _flags = flags;
+    ++_counter;
+    return true;
+}
+
+void BSDSocket::update_flags(flags_type flags)
+{
+    mbed::CriticalSectionLock lock;
+    _flags = flags;
+    ++_counter;
 }
 
 } // namespace mbed

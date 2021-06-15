@@ -53,8 +53,32 @@ CHIP_ERROR ConfigurationManagerImpl::_Init()
 
 CHIP_ERROR ConfigurationManagerImpl::_GetPrimaryWiFiMACAddress(uint8_t * buf)
 {
-    // TODO: Implement once Mbed interface integration is in place.
-    return CHIP_ERROR_NOT_IMPLEMENTED;
+    auto interface = WiFiInterface::get_default_instance();
+    if (interface)
+    {
+        auto* mac_address = interface->get_mac_address();
+        if (mac_address) { 
+            int last = -1;
+            int rc = sscanf(mac_address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%n",
+                            buf + 5, buf + 4, buf + 3, buf + 2, buf + 1, buf + 0,
+                            &last);
+            if(rc != NSAPI_MAC_BYTES || last != (NSAPI_MAC_SIZE - 1)) { 
+                ChipLogError(DeviceLayer, "Failed to extract the MAC address: %s, rc = %d, last = %d", mac_address, rc, last);
+                return CHIP_ERROR_INTERNAL;
+            } else { 
+                ChipLogError(DeviceLayer, "Extract the MAC address: %s", mac_address);
+                return CHIP_NO_ERROR;
+            } 
+        } else { 
+            ChipLogError(DeviceLayer, "Failed to extract the MAC address: nothing returned by the interface");
+            return CHIP_ERROR_INTERNAL;
+        }
+    }
+    else 
+    {
+        ChipLogError(DeviceLayer, "Failed to extract the MAC address: interface not available");        
+        return CHIP_ERROR_INTERNAL;
+    }
 }
 
 bool ConfigurationManagerImpl::_CanFactoryReset()
@@ -69,7 +93,12 @@ void ConfigurationManagerImpl::_InitiateFactoryReset(void)
 
 CHIP_ERROR ConfigurationManagerImpl::_ReadPersistedStorageValue(::chip::Platform::PersistedStorage::Key key, uint32_t & value)
 {
-    return ReadCounter(key, value);
+    CHIP_ERROR err = ReadConfigValue(key, value);
+    if (err == CHIP_DEVICE_ERROR_CONFIG_NOT_FOUND)
+    {
+        err = CHIP_ERROR_PERSISTED_STORAGE_VALUE_NOT_FOUND;
+    }
+    return err;
 }
 
 CHIP_ERROR ConfigurationManagerImpl::_WritePersistedStorageValue(::chip::Platform::PersistedStorage::Key key, uint32_t value)
