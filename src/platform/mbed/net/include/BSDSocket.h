@@ -66,9 +66,11 @@ struct BSDSocket : public FileHandle
     // Do not use getSocket to directly call them.
     nsapi_size_or_error_t recv(void *buffer, nsapi_size_t size);
     nsapi_size_or_error_t recvfrom(SocketAddress *address, void *buffer, nsapi_size_t size);
+    nsapi_size_or_error_t recvmsg(SocketAddress *address, void *buffer, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size);
     Socket *accept(nsapi_error_t *error);
     nsapi_size_or_error_t send(const void *data, nsapi_size_t size);
     nsapi_size_or_error_t sendto(const SocketAddress &address, const void *data, nsapi_size_t size);
+    nsapi_size_or_error_t sendmsg(const SocketAddress &address, const void *data, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size);
     nsapi_error_t connect(const SocketAddress &address);
 
     SocketAddress socketName;

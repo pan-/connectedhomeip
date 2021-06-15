@@ -1,3 +1,4 @@
+#include <netsocket/MsgHeader.h>
 #include "BSDSocket.h"
 #include "EventFileHandle.h"
 #include "FdControlBlock.h"
@@ -510,7 +511,9 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
     ssize_t ret;
     bool blockingState;
     SocketAddress sockAddr;
-    ssize_t total = 0;
+    nsapi_pktinfo pkt_info;
+    nsapi_msghdr_t* control = nullptr;
+    nsapi_size_t control_size = 0;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -530,6 +533,41 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
         return 0;
     }
 
+    if (message->msg_iovlen != 1) { 
+        // FIXME: concatenate buffers of the message
+        set_errno(ENOTSUP);
+        return -1;
+    }
+
+    // Parse header and retrieve associated packet info
+    for (cmsghdr * controlHdr = CMSG_FIRSTHDR(message); controlHdr != nullptr; controlHdr = CMSG_NXTHDR(message, controlHdr))
+    {
+        // Prepare the packet info header
+        pkt_info.hdr.len = sizeof(pkt_info);
+        pkt_info.hdr.level = NSAPI_SOCKET;
+        pkt_info.hdr.type = NSAPI_PKTINFO;
+
+        if (controlHdr->cmsg_level == IPPROTO_IP && controlHdr->cmsg_type == IP_PKTINFO)
+        {
+            struct in_pktinfo * inPktInfo = reinterpret_cast<struct in_pktinfo *> CMSG_DATA(controlHdr);
+            pkt_info.ipi_ifindex = inPktInfo->ipi_ifindex;
+            pkt_info.ipi_addr = SocketAddress(inPktInfo->ipi_spec_dst.s4_addr16, NSAPI_IPv4).get_addr();
+            control = reinterpret_cast<decltype(control)>(&pkt_info);
+            control_size = sizeof(pkt_info);
+            tr_info("Send packet: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
+            break;
+        } else if (controlHdr->cmsg_level == IPPROTO_IPV6 && controlHdr->cmsg_type == IPV6_PKTINFO)
+        {
+            struct in6_pktinfo * in6PktInfo = reinterpret_cast<struct in6_pktinfo *> CMSG_DATA(controlHdr);
+            pkt_info.ipi_ifindex = in6PktInfo->ipi6_ifindex;
+            pkt_info.ipi_addr = SocketAddress(in6PktInfo->ipi6_addr.s6_addr, NSAPI_IPv6).get_addr();
+            control = reinterpret_cast<decltype(control)>(&pkt_info);
+            control_size = sizeof(pkt_info);
+            tr_info("Send packet: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
+            break;
+        }
+    }
+
     if (flags & MSG_DONTWAIT)
     {
         blockingState = socket->is_blocking();
@@ -543,36 +581,34 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
     }
 
     tr_info("Socket fd %d send message to %s", fd, sockAddr.get_ip_address());
-    for (size_t i = 0; i < message->msg_iovlen; i++)
+    ret = socket->sendmsg(sockAddr, (void *) message->msg_iov[0].iov_base, message->msg_iov[0].iov_len, control, control_size);
+    if (ret < 0)
     {
-        ret = socket->getNetSocket()->sendto(sockAddr, (void *) message->msg_iov[i].iov_base, message->msg_iov[i].iov_len);
-        if (ret < 0)
-        {
-            switch (ret)
-            {
-            case NSAPI_ERROR_NO_SOCKET:
-                set_errno(ENOTSOCK);
-                break;
-            case NSAPI_ERROR_WOULD_BLOCK:
-                set_errno(EWOULDBLOCK);
-                break;
-            default:
-                set_errno(ENOBUFS);
-            }
-            total = -1;
-            break;
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send msg would block", fd);
+        } else { 
+            tr_err("Send msg failed [%d]", ret);
         }
-        total += ret;
-    }
 
-    socket->write(NULL, 0);
+        switch (ret)
+        {
+        case NSAPI_ERROR_NO_SOCKET:
+            set_errno(ENOTSOCK);
+            break;
+        case NSAPI_ERROR_WOULD_BLOCK:
+            set_errno(EWOULDBLOCK);
+            break;
+        default:
+            set_errno(ENOBUFS);
+        }
+    }
 
     if (flags & MSG_DONTWAIT)
     {
         socket->set_blocking(blockingState);
     }
 
-    return total;
+    return ret;
 }
 
 ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
@@ -716,7 +752,9 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
 {
     bool blockingState;
     SocketAddress sockAddr;
-    ssize_t total = 0;
+    nsapi_pktinfo_t pkt_info;
+    nsapi_msghdr_t* control = nullptr;
+    nsapi_size_t control_size = 0;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -736,46 +774,55 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
         return 0;
     }
 
+    if (message->msg_iovlen != 1) { 
+        // FIXME: concatenate buffers of the message
+        set_errno(ENOTSUP);
+        return -1;
+    }
+
+    if (message->msg_control && message->msg_controllen >= std::max(sizeof(in_pktinfo), sizeof(in6_pktinfo))) { 
+        control = reinterpret_cast<decltype(control)>(&pkt_info);
+        control_size = sizeof(pkt_info);
+        memset(control, 0, control_size);
+        memset(message->msg_control, 0, message->msg_controllen);
+    }
+
     if (flags & MSG_DONTWAIT)
     {
         blockingState = socket->is_blocking();
         socket->set_blocking(false);
     }
 
-    for (size_t i = 0; i < message->msg_iovlen; i++)
+    auto ret = socket->recvmsg(&sockAddr, (void *) message->msg_iov[0].iov_base, message->msg_iov[0].iov_len, control, control_size);
+    if (ret < 0)
     {
-        auto ret = socket->getNetSocket()->recvfrom(&sockAddr, (void *) message->msg_iov[i].iov_base, message->msg_iov[i].iov_len);
-        if (ret < 0)
-        {
-            tr_err("Receive from failed [%d]", ret);
-            switch (ret)
-            {
-            case NSAPI_ERROR_NO_SOCKET:
-                set_errno(ENOTSOCK);
-                break;
-            case NSAPI_ERROR_WOULD_BLOCK:
-                set_errno(EWOULDBLOCK);
-                break;
-            default:
-                set_errno(ENOBUFS);
-            }
-            total = -1;
-            break;
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive msg would block", fd);
+        } else { 
+            tr_err("Receive mag failed [%d]", ret);
         }
-        total += ret;
-        tr_info("Socket fd %d received %d bytes message from %s", fd, ret, sockAddr.get_ip_address());
+        switch (ret)
+        {
+        case NSAPI_ERROR_NO_SOCKET:
+            set_errno(ENOTSOCK);
+            break;
+        case NSAPI_ERROR_WOULD_BLOCK:
+            set_errno(EWOULDBLOCK);
+            break;
+        default:
+            set_errno(ENOBUFS);
+        }
     }
+    tr_info("Socket fd %d received %d bytes message from %s", fd, ret, sockAddr.get_ip_address());
 
-    socket->read(NULL, 0);
-
-    if (total != -1)
+    if (ret != -1)
     {
         if (message->msg_name != nullptr)
         {
             if (convert_mbed_addr_to_bsd((sockaddr *) message->msg_name, &sockAddr))
             {
                 set_errno(EINVAL);
-                total = -1;
+                ret = -1;
             }
         }
     }
@@ -785,7 +832,49 @@ ssize_t mbed_recvmsg(int fd, struct msghdr * message, int flags)
         socket->set_blocking(blockingState);
     }
 
-    return total;
+    nsapi_pktinfo_t *pkt_info_ptr = nullptr;
+    if (control) {
+        MsgHeaderIterator it(control, control_size);
+        while (it.has_next()) { 
+            auto *hdr = it.next();
+            if (hdr->level == NSAPI_SOCKET && hdr->type == NSAPI_PKTINFO) { 
+                pkt_info_ptr = reinterpret_cast<nsapi_pktinfo_t*>(hdr);
+                break;
+            }
+        }
+    }
+
+    // retrieve packet info and fill it in msg_control
+    if (control && ret >= 0 && pkt_info_ptr) {
+        pkt_info = *pkt_info_ptr;
+        struct cmsghdr * hdr = CMSG_FIRSTHDR(message);
+
+        if (pkt_info.ipi_addr.version == NSAPI_IPv4) { 
+            hdr->cmsg_level = IPPROTO_IP;
+            hdr->cmsg_type  = IP_PKTINFO;
+            hdr->cmsg_len   = CMSG_LEN(sizeof(in_pktinfo));
+
+            struct in_pktinfo * pktInfo = reinterpret_cast<struct in_pktinfo *> CMSG_DATA(hdr);
+            pktInfo->ipi_ifindex  = static_cast<decltype(pktInfo->ipi_ifindex)>(pkt_info.ipi_ifindex);
+            memcpy(pktInfo->ipi_spec_dst.s4_addr, pkt_info.ipi_addr.bytes, sizeof(pktInfo->ipi_spec_dst.s4_addr));
+
+            message->msg_controllen = CMSG_SPACE(sizeof(in_pktinfo));
+            tr_debug("Received packet: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
+        } else if (pkt_info.ipi_addr.version == NSAPI_IPv6) {
+            hdr->cmsg_level = IPPROTO_IPV6;
+            hdr->cmsg_type  = IPV6_PKTINFO;
+            hdr->cmsg_len   = CMSG_LEN(sizeof(in6_pktinfo));
+
+            struct in6_pktinfo * pktInfo = reinterpret_cast<struct in6_pktinfo *> CMSG_DATA(hdr);
+            pktInfo->ipi6_ifindex  = static_cast<decltype(pktInfo->ipi6_ifindex)>(pkt_info.ipi_ifindex);
+            memcpy(pktInfo->ipi6_addr.s6_addr, pkt_info.ipi_addr.bytes, sizeof(pktInfo->ipi6_addr.s6_addr));
+
+            message->msg_controllen = CMSG_SPACE(sizeof(in6_pktinfo));
+            tr_debug("Received packet: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
+        }
+    }
+
+    return ret;
 }
 
 int mbed_getsockopt(int fd, int level, int optname, void * optval, socklen_t * optlen)
