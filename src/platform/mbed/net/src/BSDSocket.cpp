@@ -224,6 +224,16 @@ nsapi_size_or_error_t BSDSocket::recvfrom(SocketAddress *address, void *buffer, 
     return result;
 }
 
+nsapi_size_or_error_t BSDSocket::recvmsg(SocketAddress *address, void *buffer, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->recvmsg(address, buffer, size, control, control_size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_read_as_blocking(counter);
+    }
+    return result;
+}
+
 Socket *BSDSocket::accept(nsapi_error_t *error)
 {
     auto counter = get_poll_counter();
@@ -248,6 +258,16 @@ nsapi_size_or_error_t BSDSocket::sendto(const SocketAddress &address, const void
 {
     auto counter = get_poll_counter();
     auto result = getNetSocket()->sendto(address, data, size);
+    if (result == NSAPI_ERROR_WOULD_BLOCK) { 
+        set_write_as_blocking(counter);
+    }
+    return result;
+}
+
+nsapi_size_or_error_t BSDSocket::sendmsg(const SocketAddress &address, const void *data, nsapi_size_t size, nsapi_msghdr_t* control, nsapi_size_t control_size)
+{
+    auto counter = get_poll_counter();
+    auto result = getNetSocket()->sendmsg(address, data, size, control, control_size);
     if (result == NSAPI_ERROR_WOULD_BLOCK) { 
         set_write_as_blocking(counter);
     }
