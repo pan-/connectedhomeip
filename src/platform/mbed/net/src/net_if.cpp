@@ -593,17 +593,14 @@ int mbed_inet_pton(sa_family_t family, const char * src, void * dst)
 
 static bool isBroadcast(SocketAddress ip, SocketAddress netmask)
 {
-    size_t bytesNumber = 0;
+    size_t bytesNumber = NSAPI_IPv4_BYTES;
     uint8_t *ip_bytes, *netmask_bytes;
     uint8_t mask, netmask_neg;
 
     if (ip.get_ip_version() == NSAPI_IPv6)
     {
-        bytesNumber = NSAPI_IPv6_BYTES;
-    }
-    else
-    {
-        bytesNumber = NSAPI_IPv4_BYTES;
+        // There is no broadcast address for IPv6
+        return false;
     }
 
     ip_bytes      = (uint8_t *) ip.get_ip_bytes();
