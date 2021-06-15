@@ -47,14 +47,14 @@ struct FdControlBlock
             write = true;
         }
 
-        if (writefds && FD_ISSET(index, errorfds))
+        if (errorfds && FD_ISSET(index, errorfds))
         {
             if (!handle)
             {
                 handle = mbed_file_handle(index);
                 fd     = index;
             }
-            err = false;
+            err = true;
         }
     }
 
