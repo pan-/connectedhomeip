@@ -235,7 +235,7 @@ int mbed_connect(int fd, const struct sockaddr * addr, socklen_t addrlen)
     }
 
     tr_info("Connect fd %d address %s", fd, sockAddr.get_ip_address());
-    auto ret = socket->getNetSocket()->connect(sockAddr);
+    auto ret = socket->connect(sockAddr);
     if ((ret != NSAPI_ERROR_OK) && (ret != NSAPI_ERROR_UNSUPPORTED))
     {
         tr_err("Connect failed [%d]", ret);
@@ -260,7 +260,6 @@ int mbed_connect(int fd, const struct sockaddr * addr, socklen_t addrlen)
     if (!socket->is_blocking())
     {
         tr_debug("Connect not blocking\n");
-        socket->write(NULL, 0);
         set_errno(EINPROGRESS);
         return -1;
     }
@@ -315,8 +314,6 @@ int mbed_accept(int fd, struct sockaddr * addr, socklen_t * addrlen)
         return -1;
     }
 
-    socket->read(NULL, 0);
-
     if (addr == nullptr || addrlen == nullptr)
     {
         set_errno(EINVAL);
@@ -330,7 +327,7 @@ int mbed_accept(int fd, struct sockaddr * addr, socklen_t * addrlen)
     }
 
     tr_info("Connection accept for fd %d socket", fd);
-    newSocket = socket->getNetSocket()->accept(&error);
+    newSocket = socket->accept(&error);
     if ((error != NSAPI_ERROR_OK) && (error != NSAPI_ERROR_UNSUPPORTED))
     {
         tr_err("Accept failed [%d]", error);
@@ -405,10 +402,14 @@ ssize_t mbed_send(int fd, const void * buf, size_t len, int flags)
     }
 
     tr_info("Socket fd %d send %d bytes", fd, len);
-    ret = socket->getNetSocket()->send(buf, len);
+    ret = socket->send(buf, len);
     if (ret < 0)
     {
-        tr_err("Send failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send would block", fd);
+        } else { 
+            tr_err("Send failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -424,10 +425,6 @@ ssize_t mbed_send(int fd, const void * buf, size_t len, int flags)
             set_errno(ENOBUFS);
         }
         ret = -1;
-    }
-    else
-    {
-        socket->write(NULL, 0);
     }
 
     if (flags & MSG_DONTWAIT)
@@ -478,10 +475,14 @@ ssize_t mbed_sendto(int fd, const void * buf, size_t len, int flags, const struc
     }
 
     tr_info("Socket fd %d send %d bytes to %s", fd, len, sockAddr.get_ip_address());
-    ret = socket->getNetSocket()->sendto(sockAddr, buf, len);
+    ret = socket->sendto(sockAddr, buf, len);
     if (ret < 0)
     {
-        tr_err("Send to failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Send to would block", fd);
+        } else { 
+            tr_err("Send to failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -494,10 +495,6 @@ ssize_t mbed_sendto(int fd, const void * buf, size_t len, int flags, const struc
             set_errno(ENOBUFS);
         }
         ret = -1;
-    }
-    else
-    {
-        socket->write(NULL, 0);
     }
 
     if (flags & MSG_DONTWAIT)
@@ -582,7 +579,6 @@ ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
 {
     ssize_t ret;
     bool blockingState;
-    SocketAddress peerAddr;
 
     auto * socket = getBSDSocket(fd);
     if (socket == nullptr)
@@ -608,10 +604,14 @@ ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
         socket->set_blocking(false);
     }
 
-    ret = socket->getNetSocket()->recv(buf, max_len);
+    ret = socket->recv(buf, max_len);
     if (ret < 0)
     {
-        tr_err("Receive failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive would block", fd);
+        } else { 
+            tr_err("Receive failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -627,9 +627,9 @@ ssize_t mbed_recv(int fd, void * buf, size_t max_len, int flags)
     }
     else
     {
+        SocketAddress peerAddr;
         socket->getNetSocket()->getpeername(&peerAddr);
-        tr_info("Socket fd %d recevied %d bytes from %s", fd, ret, peerAddr.get_ip_address());
-        socket->read(NULL, 0);
+        tr_info("Socket fd %d received %d bytes from %s", fd, ret, peerAddr.get_ip_address());
     }
 
     if (flags & MSG_DONTWAIT)
@@ -670,10 +670,14 @@ ssize_t mbed_recvfrom(int fd, void * buf, size_t max_len, int flags, struct sock
         socket->set_blocking(false);
     }
 
-    ret = socket->getNetSocket()->recvfrom(&sockAddr, buf, max_len);
+    ret = socket->recvfrom(&sockAddr, buf, max_len);
     if (ret < 0)
     {
-        tr_err("Receive from failed [%d]", ret);
+        if (ret == NSAPI_ERROR_WOULD_BLOCK) { 
+            tr_debug("Socket fd %d: Receive would block", fd);
+        } else { 
+            tr_err("Receive failed [%d]", ret);
+        }
         switch (ret)
         {
         case NSAPI_ERROR_NO_SOCKET:
@@ -690,7 +694,6 @@ ssize_t mbed_recvfrom(int fd, void * buf, size_t max_len, int flags, struct sock
     else
     {
         tr_info("Socket fd %d recevied %d bytes from %s", fd, ret, sockAddr.get_ip_address());
-        socket->read(NULL, 0);
         if (src_addr != nullptr)
         {
             if (convert_mbed_addr_to_bsd(src_addr, &sockAddr))
