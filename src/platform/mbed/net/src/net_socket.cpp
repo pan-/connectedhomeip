@@ -554,7 +554,7 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
             pkt_info.ipi_addr = SocketAddress(inPktInfo->ipi_spec_dst.s4_addr16, NSAPI_IPv4).get_addr();
             control = reinterpret_cast<decltype(control)>(&pkt_info);
             control_size = sizeof(pkt_info);
-            tr_info("Send packet: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
+            tr_info("Send packet IPv4: src: %s, interface: %d", tr_array(pkt_info.ipi_addr.bytes, NSAPI_IPv4_BYTES), pkt_info.ipi_ifindex);
             break;
         } else if (controlHdr->cmsg_level == IPPROTO_IPV6 && controlHdr->cmsg_type == IPV6_PKTINFO)
         {
@@ -563,7 +563,7 @@ ssize_t mbed_sendmsg(int fd, const struct msghdr * message, int flags)
             pkt_info.ipi_addr = SocketAddress(in6PktInfo->ipi6_addr.s6_addr, NSAPI_IPv6).get_addr();
             control = reinterpret_cast<decltype(control)>(&pkt_info);
             control_size = sizeof(pkt_info);
-            tr_info("Send packet: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
+            tr_info("Send packet IPv6: src: %s, interface: %d", tr_ipv6(pkt_info.ipi_addr.bytes), pkt_info.ipi_ifindex);
             break;
         }
     }
