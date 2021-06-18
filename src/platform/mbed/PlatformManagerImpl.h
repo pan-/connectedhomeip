@@ -24,6 +24,7 @@
 
 #include "events/EventQueue.h"
 #include "rtos/Mutex.h"
+#include "rtos/ConditionVariable.h"
 #include "rtos/Thread.h"
 #include <mstd_atomic>
 #include <platform/PlatformManager.h>
@@ -70,6 +71,7 @@ private:
     void _PostEvent(const ChipDeviceEvent * event);
     void _RunEventLoop();
     CHIP_ERROR _StartEventLoopTask();
+    CHIP_ERROR _StopEventLoopTask();
     CHIP_ERROR _StartChipTimer(int64_t durationMS);
     CHIP_ERROR _Shutdown();
 
@@ -96,10 +98,14 @@ private:
     bool mInitialized = false;
     rtos::Thread mLoopTask{ osPriorityNormal, CHIP_DEVICE_CONFIG_CHIP_TASK_STACK_SIZE,
                             /* memory provided */ nullptr, CHIP_DEVICE_CONFIG_CHIP_TASK_NAME };
+    osThreadId_t mChipTaskId = 0;
+    rtos::Mutex mThisStateMutex;
+    rtos::ConditionVariable mEvenLoopStopCond { mThisStateMutex };
     rtos::Mutex mChipStackMutex;
     static const size_t event_size = EVENTS_EVENT_SIZE + sizeof(void *) + sizeof(ChipDeviceEvent *);
     events::EventQueue mQueue      = { event_size * CHIP_DEVICE_CONFIG_MAX_EVENT_QUEUE_SIZE };
     mstd::atomic<bool> mShouldRunEventLoop;
+    bool mEventLoopHasStopped = false;
 };
 
 /**

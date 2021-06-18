@@ -6,6 +6,8 @@
 #include <platform/CHIPDeviceLayer.h>
 #include <platform/PlatformManager.h>
 #include <platform/internal/GenericPlatformManagerImpl.cpp>
+#include <rtos/ThisThread.h>
+#include <platform/ScopedLock.h>
 
 #include "MbedEventTimeout.h"
 
@@ -38,6 +40,8 @@ CHIP_ERROR PlatformManagerImpl::_InitChipStack(void)
         new (&mLoopTask) rtos::Thread(osPriorityNormal, CHIP_DEVICE_CONFIG_CHIP_TASK_STACK_SIZE,
                                       /* memory provided */ nullptr, CHIP_DEVICE_CONFIG_CHIP_TASK_NAME);
 
+        mChipTaskId = 0;
+
         // Reinitialize the EventQueue
         mQueue.~EventQueue();
         new (&mQueue) events::EventQueue(event_size * CHIP_DEVICE_CONFIG_MAX_EVENT_QUEUE_SIZE);
@@ -45,11 +49,20 @@ CHIP_ERROR PlatformManagerImpl::_InitChipStack(void)
         mQueue.background(
             [&](int t) { MbedEventTimeout::AttachTimeout([&] { SystemLayer.WakeSelect(); }, std::chrono::milliseconds{ t }); });
 
-        // Reinitialize the Mutex
+        // Reinitialize the Mutexes
+        mThisStateMutex.~Mutex();
+        new (&mThisStateMutex) rtos::Mutex();
+
         mChipStackMutex.~Mutex();
         new (&mChipStackMutex) rtos::Mutex();
 
-        mShouldRunEventLoop.store(true);
+        // Reinitialize the condition variable 
+        mEvenLoopStopCond.~ConditionVariable();
+        new (&mEvenLoopStopCond) rtos::ConditionVariable(mThisStateMutex);
+
+        mShouldRunEventLoop.store(false);
+
+        mEventLoopHasStopped = false;
     }
     else
     {
@@ -153,8 +166,32 @@ void PlatformManagerImpl::SysProcess()
 
 void PlatformManagerImpl::_RunEventLoop()
 {
+    // Update the internal state first. 
+    // We may run on the current thread instead of the external task
+    {
+        mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
+
+        // That's a programmign error to run the event loop if it is already running. 
+        // return early
+        if (mShouldRunEventLoop.load()) { 
+            ChipLogError(DeviceLayer, "Error trying to run the event loop while it is already running");
+            return; 
+        }
+        mShouldRunEventLoop.store(true);
+
+        // Look if a task ID has already been assigned or not. 
+        // If not, it means we run in the thread that called RunEventLoop
+        if (!mChipTaskId) { 
+            ChipLogDetail(DeviceLayer, "Run CHIP event loop on external thread");
+            mChipTaskId = rtos::ThisThread::get_id();
+        }
+
+        mEventLoopHasStopped = false;
+    }
+
     LockChipStack();
 
+    ChipLogProgress(DeviceLayer, "CHIP Run event loop");
     do
     {
         SysUpdate();
@@ -162,10 +199,19 @@ void PlatformManagerImpl::_RunEventLoop()
     } while (mShouldRunEventLoop.load());
 
     UnlockChipStack();
+
+    // Notify threads waiting on the event loop to stop 
+    {
+        mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
+        mEventLoopHasStopped = true;
+        mEvenLoopStopCond.notify_all();
+    }
 }
 
 CHIP_ERROR PlatformManagerImpl::_StartEventLoopTask()
 {
+    mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
+
     // This function start the Thread that run the chip event loop.
     // If no threads are needed, the application can directly call RunEventLoop.
     auto error = mLoopTask.start([this] {
@@ -173,11 +219,50 @@ CHIP_ERROR PlatformManagerImpl::_StartEventLoopTask()
         RunEventLoop();
     });
 
-    CHIP_ERROR err = TranslateOsStatus(error);
-    SuccessOrExit(err);
+    if (!error) { 
+        mChipTaskId = mLoopTask.get_id();
+    } else {
+        ChipLogError(DeviceLayer, "Fail to start internal loop task thread");
+    }
 
-exit:
-    return err;
+    return TranslateOsStatus(error);
+}
+
+CHIP_ERROR PlatformManagerImpl::_StopEventLoopTask()
+{
+    mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
+
+    // early return if the event loop is not running 
+    if (!mShouldRunEventLoop.load()) { 
+        return CHIP_NO_ERROR;
+    }
+
+    // Indicate that the event loop store 
+    mShouldRunEventLoop.store(false);
+
+    // Wake from select so it unblocks processing
+    LockChipStack();
+    SystemLayer.WakeSelect();
+    UnlockChipStack();
+
+    osStatus err = osOK;
+
+    // If the thread running the event loop is different from the caller 
+    // then wait it to finish 
+    if (mChipTaskId != rtos::ThisThread::get_id())
+    {
+        // First it waits for the condition variable to finish 
+        mEvenLoopStopCond.wait([this] { return mEventLoopHasStopped == true; });
+
+        // Then if it was running on the internal task, wait for it to finish
+        if (mChipTaskId == mLoopTask.get_id()) { 
+            err = mLoopTask.join();
+            mInitialized = false; // the internal thread requires initialization again.
+        }
+    }
+
+    mChipTaskId = 0; 
+    return TranslateOsStatus(err);
 }
 
 CHIP_ERROR PlatformManagerImpl::_StartChipTimer(int64_t durationMS)
@@ -188,21 +273,11 @@ CHIP_ERROR PlatformManagerImpl::_StartChipTimer(int64_t durationMS)
 
 CHIP_ERROR PlatformManagerImpl::_Shutdown()
 {
-    LockChipStack();
-
-    mShouldRunEventLoop.store(false);
-    // If running, break out of the loop
-    if (IsLoopActive())
-    {
-        SystemLayer.WakeSelect();
-        mLoopTask.join();
-    }
-
-    // Note: we leave the event queue as is. It will be reinitialized in Init()
-    mInitialized = false;
-    UnlockChipStack();
-
-    return CHIP_NO_ERROR;
+    //
+    // Call up to the base class _Shutdown() to perform the actual stack de-initialization
+    // and clean-up
+    //
+    return GenericPlatformManagerImpl<ImplClass>::_Shutdown();
 }
 
 CHIP_ERROR PlatformManagerImpl::TranslateOsStatus(osStatus error)
