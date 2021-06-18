@@ -42,12 +42,10 @@ int BSDSocket::open(int family, int type, InternetSocket * socket)
 
     _type = type;
 
-    reset_flags();
-
     _socket->sigio([&]() {
         tr_debug("Socket %d event", _fd);
-        // We don't know what change set both POLLIN and POLLOUT
-        update_flags(POLLOUT | POLLIN);
+        // We don't know what changed. Set both POLLIN and POLLOUT
+        update_flags(POLLIN | POLLOUT);
         
         if (_callback)
         {
@@ -65,6 +63,10 @@ int BSDSocket::open(int family, int type, InternetSocket * socket)
         set_errno(ENFILE);
         return -1;
     }
+
+    // Mark the socket as ready for read and write we will 
+    // find out if it actually is with the first operation
+    update_flags(POLLIN | POLLOUT);
 
     tr_info("Open %s socket with fd %d", type == MBED_TCP_SOCKET ? "TCP" : "UDP", _fd);
 
@@ -124,7 +126,7 @@ ssize_t BSDSocket::write(const void * buffer, size_t size)
 bool BSDSocket::set_write_as_blocking(counter_type counter)
 {
     auto current = _flags;
-    return try_update_flags(current & ~POLLIN, counter);
+    return try_update_flags(current & ~POLLOUT, counter);
 }
 
 off_t BSDSocket::seek(off_t offset, int whence)
