@@ -31,6 +31,7 @@
 #include <protocols/Protocols.h>
 #include <support/CHIPMem.h>
 #include <support/CodeUtils.h>
+#include <support/UnitTestRegistration.h>
 #include <transport/SecureSessionMgr.h>
 #include <transport/TransportMgr.h>
 
@@ -199,3 +200,5 @@ int TestChannel()
 
     return (nlTestRunnerStats(&sSuite));
 }
+
+CHIP_REGISTER_TEST_SUITE(TestChannel)

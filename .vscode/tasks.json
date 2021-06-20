@@ -291,11 +291,12 @@
             }
         },
         {
-            "label": "Build Mbed Shell Example",
+            "label": "Run Mbed Application",
             "type": "shell",
             "command": "scripts/examples/mbed_example.sh",
             "args": [
-                "-a=shell",
+                "-c=${input:mbedCommand}",
+                "-a=${input:mbedApp}",
                 "-b=${input:mbedTarget}",
                 "-p=${input:mbedProfile}"
             ],
@@ -304,40 +305,16 @@
                 "base": "$gcc",
                 "fileLocation": [
                     "relative",
-                    "${workspaceFolder}/examples/shell/mbed/build"
+                    "${workspaceFolder}/examples/${input:mbedApp}/mbed/build"
                 ]
             }
         },
         {
-            "label": "Flash Mbed Shell Example",
+            "label": "Run Mbed Unit Tests",
             "type": "shell",
-            "command": "scripts/examples/mbed_example_utils.sh",
+            "command": "scripts/tests/mbed_tests.sh",
             "args": [
-                "-a=shell",
-                "-b=${input:mbedTarget}",
-                "-p=${input:mbedProfile}"
-            ],
-            "problemMatcher": [],
-            "group": "build"
-        },
-        {
-            "label": "Flash Mbed Lock-app Example",
-            "type": "shell",
-            "command": "scripts/examples/mbed_example_utils.sh",
-            "args": [
-                "-a=lock-app",
-                "-b=${input:mbedTarget}",
-                "-p=${input:mbedProfile}"
-            ],
-            "problemMatcher": [],
-            "group": "build"
-        },
-        {
-            "label": "Build Mbed Lock-app Example",
-            "type": "shell",
-            "command": "scripts/examples/mbed_example.sh",
-            "args": [
-                "-a=lock-app",
+                "-c=${input:mbedCommand}",
                 "-b=${input:mbedTarget}",
                 "-p=${input:mbedProfile}"
             ],
@@ -346,7 +323,7 @@
                 "base": "$gcc",
                 "fileLocation": [
                     "relative",
-                    "${workspaceFolder}/examples/lock-app/mbed/build"
+                    "${workspaceFolder}/src/test_driver/mbed/build"
                 ]
             }
         }
@@ -354,20 +331,30 @@
     "inputs": [
         {
             "type": "pickString",
+            "id": "mbedCommand",
+            "description": "What do you want to do?",
+            "options": ["build", "flash", "build-flash"],
+            "default": "build"
+        },
+        {
+            "type": "pickString",
+            "id": "mbedApp",
+            "description": "What mbed application do you want to use?",
+            "options": ["shell", "lock-app", "lighting-app", "all-clusters-app"],
+            "default": "shell"
+        },
+        {
+            "type": "pickString",
             "id": "mbedTarget",
-            "description": "What mbed target will be used?",
-            "options": [
-                "NRF52840_DK",
-                "DISCO_L475VG_IOT01A",
-                "CY8CPROTO_062_4343W"
-            ],
+            "description": "What mbed target do you want to use?",
+            "options": ["CY8CPROTO_062_4343W", "DISCO_L475VG_IOT01A"],
             "default": "CY8CPROTO_062_4343W"
         },
         {
             "type": "pickString",
             "id": "mbedProfile",
             "description": "What mbed profile do you want to use?",
-            "options": ["release", "debug", "develop"],
+            "options": ["develop", "release", "debug"],
             "default": "develop"
         }
     ]

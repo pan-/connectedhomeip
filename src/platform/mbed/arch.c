@@ -56,3 +56,17 @@ bool __atomic_compare_exchange_8(volatile void * ptr, void * expected, unsigned 
     return core_util_atomic_cas_explicit_u64((volatile uint64_t *) ptr, (uint64_t *) expected, desired, mem_order(success_memorder),
                                              mem_order(failure_memorder));
 }
+
+void usleep(unsigned int usec) 
+{
+    unsigned int ms = (usec / 1000);
+    unsigned int us = usec % 1000;
+
+    if (ms) {
+        thread_sleep_for(ms);
+    }
+
+    if (us) {
+        wait_us(us);
+    }
+}

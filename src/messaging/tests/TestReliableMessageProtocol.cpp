@@ -30,6 +30,7 @@
 #include <protocols/Protocols.h>
 #include <protocols/echo/Echo.h>
 #include <support/CodeUtils.h>
+#include <support/UnitTestRegistration.h>
 #include <transport/SecureSessionMgr.h>
 #include <transport/TransportMgr.h>
 
@@ -170,6 +171,9 @@ public:
 
 void test_os_sleep_ms(uint64_t millisecs)
 {
+#ifdef __MBED__
+    usleep(millisecs * 1000);
+#else
     struct timespec sleep_time;
     uint64_t s = millisecs / 1000;
 
@@ -178,6 +182,7 @@ void test_os_sleep_ms(uint64_t millisecs)
     sleep_time.tv_nsec = static_cast<long>(millisecs * 1000000);
 
     nanosleep(&sleep_time, nullptr);
+#endif
 }
 
 void CheckAddClearRetrans(nlTestSuite * inSuite, void * inContext)
@@ -751,3 +756,5 @@ int TestReliableMessageProtocol()
 
     return (nlTestRunnerStats(&sSuite));
 }
+
+CHIP_REGISTER_TEST_SUITE(TestReliableMessageProtocol)

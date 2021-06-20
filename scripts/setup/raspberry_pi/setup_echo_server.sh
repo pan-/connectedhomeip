@@ -21,55 +21,64 @@
 #
 # See docs/BUILDING.md for more details
 
-AP_NAME=WIFI_AP
-AP_SSID=CHIPnet
-AP_PASSWORD="CHIPnet123"
-AP_DHCP_SERVER=192.168.4.1/24
+if [ $# -eq 0 ]; then
+    echo "No arguments. Please enter CHIP source path"
+    exit 1
+fi
 
-set -ex
+AP_NAME=WIFI_AP
+export AP_SSID=CHIPnet
+export AP_PASSWORD=CHIPnet123
+export AP_GATEWAY=192.168.4.1
+export ECHO_SERVER_PORT=7
 
 sudo apt-get install -fy \
     network-manager \
     net-tools \
     openbsd-inetd \
-    tcpdump \
     python3-virtualenv &&
     true
 
-# Run access point
-echo "Run access point"
+if ! nmcli con show | grep -q "$AP_NAME"; then
+    # Run access point
+    echo "Run access point"
 
-sudo nmcli con add type wifi ifname wlan0 mode ap con-name "$AP_NAME" autoconnect true ssid "$AP_SSID"
-sudo nmcli con modify "$AP_NAME" 802-11-wireless.band bg 802-11-wireless.channel 7
-sudo nmcli con modify "$AP_NAME" 802-11-wireless-security.proto rsn 802-11-wireless-security.group ccmp 802-11-wireless-security.pairwise ccmp 802-11-wireless-security.key-mgmt wpa-psk 802-11-wireless-security.psk "$AP_PASSWORD"
-sudo nmcli con modify "$AP_NAME" ipv4.method shared
-sudo nmcli con modify "$AP_NAME" ipv4.addr "$AP_DHCP_SERVER"
-sudo nmcli con up "$AP_NAME"
+    sudo nmcli con add type wifi ifname wlan0 mode ap con-name "$AP_NAME" autoconnect true ssid "$AP_SSID"
+    sudo nmcli con modify "$AP_NAME" 802-11-wireless.band bg 802-11-wireless.channel 7
+    sudo nmcli con modify "$AP_NAME" 802-11-wireless-security.proto rsn 802-11-wireless-security.group ccmp 802-11-wireless-security.pairwise ccmp 802-11-wireless-security.key-mgmt wpa-psk 802-11-wireless-security.psk "$AP_PASSWORD"
+    sudo nmcli con modify "$AP_NAME" ipv4.method shared
+    sudo nmcli con modify "$AP_NAME" ipv4.addr "$AP_GATEWAY"/24
+    sudo nmcli con up "$AP_NAME"
 
-sudo nmcli -f GENERAL.STATE con show "$AP_NAME"
+    sudo nmcli -f GENERAL.STATE con show "$AP_NAME"
+fi
 
-#Setting TCP and UDP echo server
-echo "Setting TCP and UDP echo server"
+if ! netstat -a | less | grep -q "echo"; then
+    #Setting TCP and UDP echo server
+    echo "Setting TCP and UDP echo server"
 
-echo 'echo            stream  tcp     nowait  root    internal' | sudo tee -a /etc/inetd.conf
-echo 'echo            dgram   udp     wait    root    internal' | sudo tee -a /etc/inetd.conf
-sudo service openbsd-inetd restart
+    echo 'echo            stream  tcp     nowait  root    internal' | sudo tee -a /etc/inetd.conf
+    echo 'echo            dgram   udp     wait    root    internal' | sudo tee -a /etc/inetd.conf
+    sudo service openbsd-inetd restart
 
-netstat -a | less | grep "echo"
+    netstat -a | less | grep "echo"
+fi
 
-# Build chip tools for network testing
-mkdir -p "$HOME"/NetTools
+cd $HOME
 
-source scripts/bootstrap.sh
+# Build chip tools for functional testing
+mkdir -p FunctionalTests
+export FUNCTIONAL_TESTS_DIR=${HOME}/FunctionalTests
 
+cd $1
 # Build CHIP main
-scripts/build/default.sh
-
-# Copy CLI tools to output directory (NetTools)
-cp out/default/chip-echo-requester out/default/chip-echo-responder out/default/chip-tool "$HOME"/NetTools
+./scripts/build/default.sh
+export CHIP_TOOLS_DIR=${HOME}/CHIP/out/default
+cd $HOME
 
 # Install Python Chip Device Controller
-virtualenv "$HOME"/NetTools/python_env
-source "$HOME"/NetTools/python_env/bin/activate
-pip install out/default/controller/python/chip*.whl
+virtualenv FunctionalTests/.venv
+source FunctionalTests/.venv/bin/activate
+pip install $CHIP_TOOLS_DIR/controller/python/chip*.whl
+pip install -r $HOME/CHIP/src/test_driver/mbed-functional/requirements.txt
 deactivate

@@ -38,6 +38,7 @@ config("includes") {
     include_dirs += [
       "${chip_root}/src/platform/mbed/net/include",
       "${chip_root}/src/platform/mbed/posix/include",
+      "${chip_root}/src/platform/mbed"
     ]
   }
 }

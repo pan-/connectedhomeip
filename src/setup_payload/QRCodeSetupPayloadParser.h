@@ -30,7 +30,7 @@
 #include <utility>
 
 namespace chip {
-
+std::string extractPayload(std::string inString);
 /**
  * @class QRCodeSetupPayloadParser
  * A class that can be used to convert a base38 encoded payload to a SetupPayload object

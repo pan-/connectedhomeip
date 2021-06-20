@@ -7,7 +7,7 @@
 
 #include "mbed-trace/mbed_trace.h"
 
-#define TRACE_GROUP "NETS"
+#define TRACE_GROUP "NETI"
 
 static int mbed_get_if_flags(unsigned int * flags);
 struct if_nameindex * mbed_if_nameindex(void)

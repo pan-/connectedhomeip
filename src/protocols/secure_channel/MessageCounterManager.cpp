@@ -100,6 +100,15 @@ void MessageCounterManager::OnMessageReceived(Messaging::ExchangeContext * excha
 
 void MessageCounterManager::OnResponseTimeout(Messaging::ExchangeContext * exchangeContext)
 {
+    if (mExchangeMgr == nullptr)
+    {
+        if (exchangeContext != nullptr)
+        {
+            exchangeContext->Close();
+        }
+        return;
+    }
+
     Transport::PeerConnectionState * state =
         mExchangeMgr->GetSessionMgr()->GetPeerConnectionState(exchangeContext->GetSecureSession());
 

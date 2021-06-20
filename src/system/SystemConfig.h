@@ -155,6 +155,13 @@
 #endif /* CHIP_SYSTEM_CONFIG_ERROR_TYPE */
 
 #if CHIP_SYSTEM_CONFIG_USE_LWIP
+#ifdef TARGET_MCU_STM32L4
+// [ MBED HACK ] 
+// We have to undefine |SUCCESS| here to prevent compilation error due to 
+// conflict with |ErrorStatus| enum type values defined in CMSIS/stm32l4xx.h.
+// This problem is only related for when tests are build and nlunit-test.h is used. 
+#undef SUCCESS
+#endif
 #include <lwip/opt.h>
 #endif // CHIP_SYSTEM_CONFIG_USE_LWIP
 
@@ -708,6 +715,20 @@ struct LwIPEvent;
 #define CHIP_SYSTEM_CONFIG_USE_ZEPHYR_NET_IF 0
 #endif
 #endif // CHIP_SYSTEM_CONFIG_USE_ZEPHYR_NET_IF
+
+#ifndef CHIP_SYSTEM_CONFIG_USE_MBED_NET_IF
+#if CHIP_SYSTEM_CONFIG_USE_SOCKETS && __MBED__
+/**
+ *  @def CHIP_SYSTEM_CONFIG_USE_MBED_NET_IF
+ *
+ *  @brief
+ *      Use Mbed netwrok interface API to enumerate available network interfaces
+ *
+ *  Defaults to enabled on Mbed platforms using sockets
+ */
+#define CHIP_SYSTEM_CONFIG_USE_MBED_NET_IF 1
+#endif
+#endif // CHIP_SYSTEM_CONFIG_USE_MBED_NET_IF
 
 /**
  *  @def CHIP_SYSTEM_CONFIG_USE_BSD_IFADDRS
