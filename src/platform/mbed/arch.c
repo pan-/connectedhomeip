@@ -1,5 +1,7 @@
 #include "platform/mbed_atomic.h"
+#include "platform/mbed_thread.h"
 #include "platform/mbed_toolchain.h"
+#include "platform/mbed_wait_api.h"
 
 // TODO: Remove!
 // This file is a temporary workaround until atomic integration has been solved
@@ -57,16 +59,18 @@ bool __atomic_compare_exchange_8(volatile void * ptr, void * expected, unsigned 
                                              mem_order(failure_memorder));
 }
 
-void usleep(unsigned int usec) 
+void usleep(unsigned int usec)
 {
     unsigned int ms = (usec / 1000);
     unsigned int us = usec % 1000;
 
-    if (ms) {
+    if (ms)
+    {
         thread_sleep_for(ms);
     }
 
-    if (us) {
-        wait_us(us);
+    if (us)
+    {
+        wait_us((int) us);
     }
 }

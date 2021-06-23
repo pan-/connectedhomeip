@@ -111,8 +111,8 @@ private:
     WiFiInterface * mWifiInterface              = nullptr;
     nsapi_security_t mSecurityType              = NSAPI_SECURITY_WPA_WPA2;
     bool mIsProvisioned                         = false;
-    Inet::IPAddress mIp4Address                 = IPAddress::Any;
-    Inet::IPAddress mIp6Address                 = IPAddress::Any;
+    Inet::IPAddress mIp4Address                 = Inet::IPAddress::Any;
+    Inet::IPAddress mIp6Address                 = Inet::IPAddress::Any;
 };
 
 inline ConnectivityManager::WiFiAPMode ConnectivityManagerImpl::_GetWiFiAPMode(void)
@@ -126,12 +126,12 @@ inline uint32_t ConnectivityManagerImpl::_GetWiFiStationReconnectIntervalMS(void
 }
 inline bool ConnectivityManagerImpl::_HaveIPv4InternetConnectivity(void)
 {
-    return mWiFiStationState == kWiFiStationState_Connected && mIp4Address != IPAddress::Any;
+    return mWiFiStationState == kWiFiStationState_Connected && mIp4Address != Inet::IPAddress::Any;
 }
 
 inline bool ConnectivityManagerImpl::_HaveIPv6InternetConnectivity(void)
 {
-    return mWiFiStationState == kWiFiStationState_Connected && mIp6Address != IPAddress::Any;
+    return mWiFiStationState == kWiFiStationState_Connected && mIp6Address != Inet::IPAddress::Any;
 }
 
 inline bool ConnectivityManagerImpl::_HaveServiceConnectivity(void)

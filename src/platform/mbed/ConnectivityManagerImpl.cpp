@@ -145,7 +145,7 @@ CHIP_ERROR ConnectivityManagerImpl::_SetWiFiStationReconnectIntervalMS(uint32_t 
 
     if (mWiFiStationReconnectIntervalMS != val)
     {
-        ChipLogProgress(DeviceLayer, "WiFi station reconnect interval MS change: %d -> %d", mWiFiStationReconnectIntervalMS, val);
+        ChipLogProgress(DeviceLayer, "WiFi station reconnect interval MS change: %lu -> %lu", mWiFiStationReconnectIntervalMS, val);
     }
 
     mWiFiStationReconnectIntervalMS = val;
@@ -211,7 +211,7 @@ CHIP_ERROR ConnectivityManagerImpl::ProvisionWiFiNetwork(const char * ssid, cons
 
     mIsProvisioned = true;
 
-    PlatformMgr().ScheduleWork(OnWifiStationChange, NULL);
+    PlatformMgr().ScheduleWork(OnWifiStationChange, 0);
 
     return CHIP_NO_ERROR;
 }
@@ -235,7 +235,7 @@ void ConnectivityManagerImpl::_ClearWiFiStationProvision(void)
 
     mIsProvisioned = false;
 
-    PlatformMgr().ScheduleWork(OnWifiStationChange, NULL);
+    PlatformMgr().ScheduleWork(OnWifiStationChange, 0);
 }
 
 
