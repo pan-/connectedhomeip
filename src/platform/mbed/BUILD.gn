@@ -2,23 +2,3 @@ import("//build_overrides/chip.gni")
 import("${chip_root}/src/platform/device.gni")
 
 assert(chip_device_platform == "mbed")
-
-source_set("mbed_bsd_socket") {
-  public_configs = [ "${chip_root}/src:includes" ]
-
-  sources = [
-    "net/src/BSDSocket.cpp",
-    "net/src/common.cpp",
-    "net/src/net_dns.cpp",
-    "net/src/net_if.cpp",
-    "net/src/net_socket.cpp",
-    "posix/src/eventfd.cpp",
-    "posix/src/if.cpp",
-    "posix/src/ifaddrs.cpp",
-    "posix/src/inet.cpp",
-    "posix/src/ioctl.cpp",
-    "posix/src/netdb.cpp",
-    "posix/src/select.cpp",
-    "posix/src/socket.cpp",
-  ]
-}

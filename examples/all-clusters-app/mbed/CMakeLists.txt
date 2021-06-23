@@ -21,6 +21,8 @@ set(APP_TARGET chip-mbed-all-clusters-app-example)
 include(${MBED_PATH}/tools/cmake/app.cmake)
 add_subdirectory(${MBED_PATH} ./mbed_build)
 
+add_subdirectory(mbed-os-posix-socket)
+
 if("wifi_ism43362" IN_LIST MBED_TARGET_LABELS)
     add_subdirectory(wifi-ism43362)
 endif()
@@ -118,6 +120,8 @@ mbed_set_mbed_target_linker_script(${APP_TARGET})
 
 project(${APP_TARGET})
 
+target_link_libraries(${APP_TARGET} mbed-os-posix-socket mbed-os mbed-ble mbed-events mbed-netsocket mbed-storage mbed-storage-kv-global-api mbed-mbedtls mbed-mbedtls-cryptocell310 chip)
+
 if("wifi_ism43362" IN_LIST MBED_TARGET_LABELS)
     target_link_libraries(${APP_TARGET}
             wifi-ism43362
@@ -135,8 +139,6 @@ if("WHD" IN_LIST MBED_TARGET_LABELS)
         mbed-cy_psoc6_common_network mbed-emac mbed-cy_psoc6_whd
     )
 endif()
-
-target_link_libraries(${APP_TARGET} mbed-os mbed-ble mbed-events mbed-netsocket mbed-storage mbed-storage-kv-global-api mbed-mbedtls mbed-mbedtls-cryptocell310 chip)
 
 mbed_set_post_build(${APP_TARGET})
 

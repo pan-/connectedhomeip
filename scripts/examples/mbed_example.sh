@@ -106,6 +106,10 @@ if [[ "$COMMAND" == *"build"* ]]; then
     # Create symlinks to mbed-os submodule
     ln -sfTr $MBED_OS_PATH "${APP}/mbed/mbed-os"
 
+    # Create symlinks to mbed-os-posix-socket submodule
+    MBED_OS_POSIX_SOCKET_PATH="$CHIP_ROOT"/third_party/mbed-os-posix-socket/repo
+    ln -sfTr $MBED_OS_POSIX_SOCKET_PATH "${APP}/mbed/mbed-os-posix-socket"
+
     if [ "$TARGET_BOARD" == "DISCO_L475VG_IOT01A" ]; then
         # Add the Mbed OS driver for the ISM43362 Wi-Fi module
         WIFI_ISM43362_PATH="$CHIP_ROOT"/third_party/wifi-ism43362/repo
