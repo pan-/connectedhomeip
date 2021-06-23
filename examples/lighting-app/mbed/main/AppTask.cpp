@@ -19,23 +19,24 @@
 #include "AppTask.h"
 #include "LEDWidget.h"
 #include "LightingManager.h"
-#include "OnboardingCodesUtil.h"
+#include <app/server/OnboardingCodesUtil.h>
 
 // FIXME: Undefine the `sleep()` function included by the CHIPDeviceLayer.h
 // from unistd.h to avoid a conflicting declaration with the `sleep()` provided
 // by Mbed-OS in mbed_power_mgmt.h.
 #define sleep unistd_sleep
-#include "Server.h"
+#include <app/server/Server.h>
+#include <app/server/Mdns.h>
 #include <platform/CHIPDeviceLayer.h>
 #undef sleep
 
 #include <support/logging/CHIPLogging.h>
 
 // ZAP -- ZCL Advanced Platform
-#include "attribute-storage.h"
-#include "gen/attribute-id.h"
-#include "gen/attribute-type.h"
-#include "gen/cluster-id.h"
+#include <app/common/gen/attribute-id.h>
+#include <app/common/gen/attribute-type.h>
+#include <app/common/gen/cluster-id.h>
+#include <app/util/attribute-storage.h>
 
 // mbed-os headers
 #include "drivers/InterruptIn.h"
@@ -75,6 +76,17 @@ AppTask AppTask::sAppTask;
 
 int AppTask::Init()
 {
+    // Register the callback to init the MDNS server when connectivity is available 
+    PlatformMgr().AddEventHandler([] (const ChipDeviceEvent * event, intptr_t arg) {
+        // Restart the server whenever an ip address is renewed
+        if (event->Type == DeviceEventType::kInternetConnectivityChange) { 
+            if (event->InternetConnectivityChange.IPv4 == kConnectivity_Established ||
+                event->InternetConnectivityChange.IPv6 == kConnectivity_Established) {
+                chip::app::Mdns::StartServer();
+            }
+        }
+    }, 0);
+
     //-------------
     // Initialize button
     sLightingButton.fall(mbed::callback(this, &AppTask::LightingButtonPressEventHandler));
@@ -396,7 +408,7 @@ void AppTask::UpdateClusterState()
                                                  ZCL_BOOLEAN_ATTRIBUTE_TYPE);
     if (status != EMBER_ZCL_STATUS_SUCCESS)
     {
-        ChipLogError(NotSpecified, "Updating on/off cluster failed: %x", status);
+        ChipLogError(NotSpecified, "Updating on/off cluster failed: %lx", status);
     }
 
     uint8_t level = LightingMgr().GetLevel();
@@ -406,6 +418,6 @@ void AppTask::UpdateClusterState()
 
     if (status != EMBER_ZCL_STATUS_SUCCESS)
     {
-        ChipLogError(NotSpecified, "Updating level cluster failed: %x", status);
+        ChipLogError(NotSpecified, "Updating level cluster failed: %lx", status);
     }
 }

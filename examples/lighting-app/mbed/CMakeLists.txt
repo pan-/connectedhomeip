@@ -14,7 +14,7 @@ configure_file(
     @ONLY
 )
 
-set(MBED_PATH $ENV{MBED_OS_PATH} CACHE INTERNAL "")
+set(MBED_PATH ${CMAKE_CURRENT_SOURCE_DIR}/mbed-os CACHE INTERNAL "")
 set(MBED_CONFIG_PATH ${CMAKE_CURRENT_BINARY_DIR} CACHE INTERNAL "")
 set(APP_TARGET chip-mbed-lighting-app-example)
 
@@ -33,36 +33,47 @@ target_include_directories(${APP_TARGET} PRIVATE
                            ${APP_ROOT}/lighting-common
                            ${MBED_COMMON}/util/include
                            ${CHIP_ROOT}/src/app
+                           ${CHIP_ROOT}/third_party/nlio/repo/include
 )
 
 target_sources(${APP_TARGET} PRIVATE
-               ${LIGHTING_COMMON}/gen/attribute-size.cpp
-               ${CMAKE_CURRENT_SOURCE_DIR}/main/main.cpp
                ${CMAKE_CURRENT_SOURCE_DIR}/main/AppTask.cpp
-               ${CMAKE_CURRENT_SOURCE_DIR}/main/LightingManager.cpp
+               ${CMAKE_CURRENT_SOURCE_DIR}/main/LightingManager.cpp               
+               ${CMAKE_CURRENT_SOURCE_DIR}/main/main.cpp
                ${CMAKE_CURRENT_SOURCE_DIR}/main/ZclCallbacks.cpp
-               ${APP_ROOT}/lighting-common/gen/call-command-handler.cpp
+               ${LIGHTING_COMMON}/gen/attribute-size.cpp               
                ${APP_ROOT}/lighting-common/gen/callback-stub.cpp
+               ${LIGHTING_COMMON}/gen/IMClusterCommandHandler.cpp
                ${MBED_COMMON}/util/LEDWidget.cpp
                ${CHIP_ROOT}/src/app/util/DataModelHandler.cpp
                ${CHIP_ROOT}/src/app/reporting/reporting-default-configuration.cpp
                ${CHIP_ROOT}/src/app/reporting/reporting.cpp
                ${CHIP_ROOT}/src/app/util/af-event.cpp
                ${CHIP_ROOT}/src/app/util/af-main-common.cpp
-               ${CHIP_ROOT}/src/app/util/attribute-size.cpp
+               ${CHIP_ROOT}/src/app/util/attribute-list-byte-span.cpp
+               ${CHIP_ROOT}/src/app/util/attribute-size-util.cpp
                ${CHIP_ROOT}/src/app/util/attribute-storage.cpp
                ${CHIP_ROOT}/src/app/util/attribute-table.cpp
                ${CHIP_ROOT}/src/app/util/binding-table.cpp
                ${CHIP_ROOT}/src/app/util/chip-message-send.cpp
                ${CHIP_ROOT}/src/app/util/client-api.cpp
+               ${CHIP_ROOT}/src/app/util/ember-compatibility-functions.cpp
                ${CHIP_ROOT}/src/app/util/ember-print.cpp
                ${CHIP_ROOT}/src/app/util/message.cpp
                ${CHIP_ROOT}/src/app/util/process-cluster-message.cpp
                ${CHIP_ROOT}/src/app/util/process-global-message.cpp
                ${CHIP_ROOT}/src/app/util/util.cpp
+               ${CHIP_ROOT}/src/app/server/EchoHandler.cpp
+               ${CHIP_ROOT}/src/app/server/Mdns.cpp
+               ${CHIP_ROOT}/src/app/server/OnboardingCodesUtil.cpp
+               ${CHIP_ROOT}/src/app/server/RendezvousServer.cpp
+               ${CHIP_ROOT}/src/app/server/Server.cpp
+               ${CHIP_ROOT}/src/app/server/StorablePeerConnection.cpp
                ${CHIP_ROOT}/src/app/clusters/basic/basic.cpp
                ${CHIP_ROOT}/src/app/clusters/bindings/bindings.cpp
+               ${CHIP_ROOT}/src/app/clusters/general-commissioning-server/general-commissioning-server.cpp
                ${CHIP_ROOT}/src/app/clusters/on-off-server/on-off-server.cpp
+               ${CHIP_ROOT}/src/app/clusters/operational-credentials-server/operational-credentials-server.cpp
                ${CHIP_ROOT}/src/app/clusters/level-control/level-control.cpp
                ${CHIP_ROOT}/src/app/clusters/network-commissioning/network-commissioning-ember.cpp
                ${CHIP_ROOT}/src/app/clusters/network-commissioning/network-commissioning.cpp
