@@ -411,6 +411,6 @@ void AppTask::UpdateClusterState()
                                                  &newValue, ZCL_BOOLEAN_ATTRIBUTE_TYPE);
     if (status != EMBER_ZCL_STATUS_SUCCESS)
     {
-        ChipLogError(NotSpecified, "ZCL update failed: %x", status);
+        ChipLogError(NotSpecified, "ZCL update failed: %lx", status);
     }
 }
