@@ -88,6 +88,9 @@ fi
 set -e
 pwd
 
+# Activate Matter environment
+source "$CHIP_ROOT"/scripts/activate.sh
+
 # Build directory setup
 BUILD_DIRECTORY="$APP"/mbed/build-"$TARGET_BOARD"/"$PROFILE"/
 
