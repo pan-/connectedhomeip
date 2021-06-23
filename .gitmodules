@@ -94,3 +94,4 @@
 [submodule "third_party/mbed-os-posix-socket/repo"]
 	path = third_party/mbed-os-posix-socket/repo
 	url = https://github.com/ARMmbed/mbed-os-posix-socket.git
+	branch = main
