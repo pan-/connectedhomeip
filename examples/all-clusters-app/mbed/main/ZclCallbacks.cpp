@@ -16,9 +16,10 @@
  *    limitations under the License.
  */
 
-#include "af.h"
-#include "gen/attribute-id.h"
-#include "gen/cluster-id.h"
+#include <app/util/af.h>
+#include <app/common/gen/attribute-id.h>
+#include <app/common/gen/cluster-id.h>
+#include <app/common/gen/command-id.h>
 #include <app/chip-zcl-zpro-codec.h>
 #include <app/server/Mdns.h>
 #include <app/util/af-types.h>
