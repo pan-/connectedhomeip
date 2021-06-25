@@ -78,7 +78,6 @@ private:
 
     WiFiAPMode _GetWiFiAPMode(void);
 
-
     uint32_t _GetWiFiStationReconnectIntervalMS(void);
     CHIP_ERROR _SetWiFiStationReconnectIntervalMS(uint32_t val);
     bool _IsWiFiStationConnected(void);
@@ -103,16 +102,16 @@ private:
     friend ConnectivityManagerImpl & ConnectivityMgrImpl(void);
 
     static ConnectivityManagerImpl sInstance;
-    WiFiStationMode mWiFiStationMode            = kWiFiStationMode_NotSupported;
-    WiFiStationState mWiFiStationState          = kWiFiStationState_NotConnected;
-    WiFiAPMode mWiFiAPMode                      = kWiFiAPMode_NotSupported;
-    uint32_t mWiFiStationReconnectIntervalMS    = CHIP_DEVICE_CONFIG_WIFI_STATION_RECONNECT_INTERVAL;
-    uint32_t mWiFiAPIdleTimeoutMS               = CHIP_DEVICE_CONFIG_WIFI_AP_IDLE_TIMEOUT;
-    WiFiInterface * mWifiInterface              = nullptr;
-    nsapi_security_t mSecurityType              = NSAPI_SECURITY_WPA_WPA2;
-    bool mIsProvisioned                         = false;
-    Inet::IPAddress mIp4Address                 = Inet::IPAddress::Any;
-    Inet::IPAddress mIp6Address                 = Inet::IPAddress::Any;
+    WiFiStationMode mWiFiStationMode         = kWiFiStationMode_NotSupported;
+    WiFiStationState mWiFiStationState       = kWiFiStationState_NotConnected;
+    WiFiAPMode mWiFiAPMode                   = kWiFiAPMode_NotSupported;
+    uint32_t mWiFiStationReconnectIntervalMS = CHIP_DEVICE_CONFIG_WIFI_STATION_RECONNECT_INTERVAL;
+    uint32_t mWiFiAPIdleTimeoutMS            = CHIP_DEVICE_CONFIG_WIFI_AP_IDLE_TIMEOUT;
+    WiFiInterface * mWifiInterface           = nullptr;
+    nsapi_security_t mSecurityType           = NSAPI_SECURITY_WPA_WPA2;
+    bool mIsProvisioned                      = false;
+    Inet::IPAddress mIp4Address              = Inet::IPAddress::Any;
+    Inet::IPAddress mIp6Address              = Inet::IPAddress::Any;
 };
 
 inline ConnectivityManager::WiFiAPMode ConnectivityManagerImpl::_GetWiFiAPMode(void)

@@ -39,7 +39,7 @@ using namespace chip::Shell;
 int main()
 {
     chip::Logging::SetLogFilter(chip::Logging::LogCategory::kLogCategory_Progress);
-	
+
     chip::Platform::MemoryInit();
     chip::DeviceLayer::PlatformMgr().InitChipStack();
     chip::DeviceLayer::PlatformMgr().StartEventLoopTask();

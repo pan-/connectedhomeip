@@ -64,21 +64,21 @@ if ! netstat -a | less | grep -q "echo"; then
     netstat -a | less | grep "echo"
 fi
 
-cd $HOME
+cd "$HOME"
 
 # Build chip tools for functional testing
 mkdir -p FunctionalTests
-export FUNCTIONAL_TESTS_DIR=${HOME}/FunctionalTests
+export FUNCTIONAL_TESTS_DIR="$HOME"/FunctionalTests
 
-cd $1
+cd "$1"
 # Build CHIP main
 ./scripts/build/default.sh
-export CHIP_TOOLS_DIR=${HOME}/CHIP/out/default
-cd $HOME
+export CHIP_TOOLS_DIR="$HOME"/CHIP/out/default
+cd "$HOME"
 
 # Install Python Chip Device Controller
 virtualenv FunctionalTests/.venv
 source FunctionalTests/.venv/bin/activate
-pip install $CHIP_TOOLS_DIR/controller/python/chip*.whl
-pip install -r $HOME/CHIP/src/test_driver/mbed-functional/requirements.txt
+pip install "$CHIP_TOOLS_DIR"/controller/python/chip*.whl
+pip install -r "$HOME"/CHIP/src/test_driver/mbed-functional/requirements.txt
 deactivate

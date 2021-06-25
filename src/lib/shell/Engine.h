@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include <core/CHIPConfig.h>
 #include "streamer.h"
+#include <core/CHIPConfig.h>
 
 #include <stdarg.h>
 #include <stddef.h>

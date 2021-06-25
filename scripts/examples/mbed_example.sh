@@ -34,29 +34,29 @@ PROFILE=release
 
 for i in "$@"; do
     case $i in
-    -a=* | --app=*)
-        APP="${i#*=}"
-        shift
-        ;;
-    -b=* | --board=*)
-        TARGET_BOARD="${i#*=}"
-        shift
-        ;;
-    -t=* | --toolchain=*)
-        TOOLCHAIN="${i#*=}"
-        shift
-        ;;
-    -p=* | --profile=*)
-        PROFILE="${i#*=}"
-        shift
-        ;;
-    -c=* | --command=*)
-        COMMAND="${i#*=}"
-        shift
-        ;;
-    *)
-        # unknown option
-        ;;
+        -a=* | --app=*)
+            APP="${i#*=}"
+            shift
+            ;;
+        -b=* | --board=*)
+            TARGET_BOARD="${i#*=}"
+            shift
+            ;;
+        -t=* | --toolchain=*)
+            TOOLCHAIN="${i#*=}"
+            shift
+            ;;
+        -p=* | --profile=*)
+            PROFILE="${i#*=}"
+            shift
+            ;;
+        -c=* | --command=*)
+            COMMAND="${i#*=}"
+            shift
+            ;;
+        *)
+            # unknown option
+            ;;
     esac
 done
 
@@ -104,25 +104,25 @@ if [[ "$COMMAND" == *"build"* ]]; then
     MBED_OS_PATH="$CHIP_ROOT"/third_party/mbed-os/repo
 
     # Create symlinks to mbed-os submodule
-    ln -sfTr $MBED_OS_PATH "${APP}/mbed/mbed-os"
+    ln -sfTr "$MBED_OS_PATH" "$APP/mbed/mbed-os"
 
     # Create symlinks to mbed-os-posix-socket submodule
     MBED_OS_POSIX_SOCKET_PATH="$CHIP_ROOT"/third_party/mbed-os-posix-socket/repo
-    ln -sfTr $MBED_OS_POSIX_SOCKET_PATH "${APP}/mbed/mbed-os-posix-socket"
+    ln -sfTr "$MBED_OS_POSIX_SOCKET_PATH" "$APP/mbed/mbed-os-posix-socket"
 
     if [ "$TARGET_BOARD" == "DISCO_L475VG_IOT01A" ]; then
         # Add the Mbed OS driver for the ISM43362 Wi-Fi module
         WIFI_ISM43362_PATH="$CHIP_ROOT"/third_party/wifi-ism43362/repo
 
         # Create symlinks to WIFI-ISM43362 submodule
-        ln -sfTr $WIFI_ISM43362_PATH "${APP}/mbed/wifi-ism43362"
+        ln -sfTr "$WIFI_ISM43362_PATH" "$APP/mbed/wifi-ism43362"
     fi
 
     # Generate config file for selected target, toolchain and hardware
     mbed-tools configure -t "$TOOLCHAIN" -m "$TARGET_BOARD" -p "$APP"/mbed/
 
     # Remove old artifacts to force linking
-    rm -rf "${BUILD_DIRECTORY}/chip-"*
+    rm -rf "$BUILD_DIRECTORY/chip-"*
 
     # Create output directory and copy config file there.
     mkdir -p "$BUILD_DIRECTORY"
@@ -141,5 +141,5 @@ if [[ "$COMMAND" == *"flash"* ]]; then
     MBED_FLASH_SCRIPTS_PATH=$CHIP_ROOT/config/mbed/scripts
 
     # Flash application
-    openocd -f $MBED_FLASH_SCRIPTS_PATH/$TARGET_BOARD.tcl -c "program $BUILD_DIRECTORY/chip-mbed-$APP-example verify reset exit"
+    openocd -f "$MBED_FLASH_SCRIPTS_PATH/$TARGET_BOARD".tcl -c "program $BUILD_DIRECTORY/chip-mbed-$APP-example verify reset exit"
 fi

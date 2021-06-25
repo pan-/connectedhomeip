@@ -56,27 +56,32 @@ CHIP_ERROR ConfigurationManagerImpl::_GetPrimaryWiFiMACAddress(uint8_t * buf)
     auto interface = WiFiInterface::get_default_instance();
     if (interface)
     {
-        auto* mac_address = interface->get_mac_address();
-        if (mac_address) { 
+        auto * mac_address = interface->get_mac_address();
+        if (mac_address)
+        {
             int last = -1;
-            int rc = sscanf(mac_address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%n",
-                            buf + 5, buf + 4, buf + 3, buf + 2, buf + 1, buf + 0,
-                            &last);
-            if(rc != NSAPI_MAC_BYTES || last != (NSAPI_MAC_SIZE - 1)) { 
+            int rc =
+                sscanf(mac_address, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx%n", buf + 5, buf + 4, buf + 3, buf + 2, buf + 1, buf + 0, &last);
+            if (rc != NSAPI_MAC_BYTES || last != (NSAPI_MAC_SIZE - 1))
+            {
                 ChipLogError(DeviceLayer, "Failed to extract the MAC address: %s, rc = %d, last = %d", mac_address, rc, last);
                 return CHIP_ERROR_INTERNAL;
-            } else { 
+            }
+            else
+            {
                 ChipLogError(DeviceLayer, "Extract the MAC address: %s", mac_address);
                 return CHIP_NO_ERROR;
-            } 
-        } else { 
+            }
+        }
+        else
+        {
             ChipLogError(DeviceLayer, "Failed to extract the MAC address: nothing returned by the interface");
             return CHIP_ERROR_INTERNAL;
         }
     }
-    else 
+    else
     {
-        ChipLogError(DeviceLayer, "Failed to extract the MAC address: interface not available");        
+        ChipLogError(DeviceLayer, "Failed to extract the MAC address: interface not available");
         return CHIP_ERROR_INTERNAL;
     }
 }

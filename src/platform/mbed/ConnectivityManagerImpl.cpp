@@ -138,7 +138,6 @@ CHIP_ERROR ConnectivityManagerImpl::_Init()
     return err;
 }
 
-
 CHIP_ERROR ConnectivityManagerImpl::_SetWiFiStationReconnectIntervalMS(uint32_t val)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
@@ -237,7 +236,6 @@ void ConnectivityManagerImpl::_ClearWiFiStationProvision(void)
 
     PlatformMgr().ScheduleWork(OnWifiStationChange, 0);
 }
-
 
 CHIP_ERROR ConnectivityManagerImpl::OnStationConnected()
 {

@@ -89,7 +89,7 @@ void OnTcpMessageSent(Inet::TCPEndPoint * endPoint, uint16_t Length)
     streamer_printf(streamer_get(), "INFO: TCP socket message sent\r\n");
 }
 
-INET_ERROR OnTcpMessageReceived(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle&& buffer)
+INET_ERROR OnTcpMessageReceived(Inet::TCPEndPoint * endPoint, System::PacketBufferHandle && buffer)
 {
     streamer_t * sout = streamer_get();
 
@@ -107,7 +107,8 @@ void OnConnectionCompleted(Inet::TCPEndPoint * endPoint, INET_ERROR error)
     socketEvent.set(socketConnectionCompeletedFlag);
 }
 
-void OnUdpMessageReceived(Inet::IPEndPointBasis * endPoint, System::PacketBufferHandle&& buffer, const Inet::IPPacketInfo * pktInfo)
+void OnUdpMessageReceived(Inet::IPEndPointBasis * endPoint, System::PacketBufferHandle && buffer,
+                          const Inet::IPPacketInfo * pktInfo)
 {
     char peerAddrStr[PeerAddress::kMaxToStringSize];
     streamer_t * sout       = streamer_get();

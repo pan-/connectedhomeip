@@ -34,6 +34,7 @@ group("mbed") {
     # deps += [ "${chip_root}/src:tests" ]
     deps += [
       "${chip_root}/src/app/tests",
+      "${chip_root}/src/ble/tests",
       "${chip_root}/src/credentials/tests",
       "${chip_root}/src/crypto/tests",
       "${chip_root}/src/inet/tests",
@@ -43,16 +44,17 @@ group("mbed") {
       "${chip_root}/src/lib/mdns/minimal/records/tests",
       "${chip_root}/src/lib/mdns/minimal/responders/tests",
       "${chip_root}/src/lib/mdns/minimal/tests",
+
       # "${chip_root}/src/lib/support/tests",
       "${chip_root}/src/messaging/tests",
+      "${chip_root}/src/platform/tests",
       "${chip_root}/src/protocols/bdx/tests",
       "${chip_root}/src/setup_payload/tests",
       "${chip_root}/src/system/tests",
+
       # "${chip_root}/src/transport/raw/tests",
       "${chip_root}/src/transport/retransmit/tests",
       "${chip_root}/src/transport/tests",
-      "${chip_root}/src/ble/tests",
-      "${chip_root}/src/platform/tests",
     ]
   }
 }

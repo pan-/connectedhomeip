@@ -5,9 +5,9 @@
 #include <inet/InetLayer.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <platform/PlatformManager.h>
+#include <platform/ScopedLock.h>
 #include <platform/internal/GenericPlatformManagerImpl.cpp>
 #include <rtos/ThisThread.h>
-#include <platform/ScopedLock.h>
 
 #include "MbedEventTimeout.h"
 
@@ -56,7 +56,7 @@ CHIP_ERROR PlatformManagerImpl::_InitChipStack(void)
         mChipStackMutex.~Mutex();
         new (&mChipStackMutex) rtos::Mutex();
 
-        // Reinitialize the condition variable 
+        // Reinitialize the condition variable
         mEvenLoopStopCond.~ConditionVariable();
         new (&mEvenLoopStopCond) rtos::ConditionVariable(mThisStateMutex);
 
@@ -166,22 +166,24 @@ void PlatformManagerImpl::SysProcess()
 
 void PlatformManagerImpl::_RunEventLoop()
 {
-    // Update the internal state first. 
+    // Update the internal state first.
     // We may run on the current thread instead of the external task
     {
         mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
 
-        // That's a programmign error to run the event loop if it is already running. 
+        // That's a programmign error to run the event loop if it is already running.
         // return early
-        if (mShouldRunEventLoop.load()) { 
+        if (mShouldRunEventLoop.load())
+        {
             ChipLogError(DeviceLayer, "Error trying to run the event loop while it is already running");
-            return; 
+            return;
         }
         mShouldRunEventLoop.store(true);
 
-        // Look if a task ID has already been assigned or not. 
+        // Look if a task ID has already been assigned or not.
         // If not, it means we run in the thread that called RunEventLoop
-        if (!mChipTaskId) { 
+        if (!mChipTaskId)
+        {
             ChipLogDetail(DeviceLayer, "Run CHIP event loop on external thread");
             mChipTaskId = rtos::ThisThread::get_id();
         }
@@ -200,7 +202,7 @@ void PlatformManagerImpl::_RunEventLoop()
 
     UnlockChipStack();
 
-    // Notify threads waiting on the event loop to stop 
+    // Notify threads waiting on the event loop to stop
     {
         mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
         mEventLoopHasStopped = true;
@@ -219,9 +221,12 @@ CHIP_ERROR PlatformManagerImpl::_StartEventLoopTask()
         RunEventLoop();
     });
 
-    if (!error) { 
+    if (!error)
+    {
         mChipTaskId = mLoopTask.get_id();
-    } else {
+    }
+    else
+    {
         ChipLogError(DeviceLayer, "Fail to start internal loop task thread");
     }
 
@@ -232,12 +237,13 @@ CHIP_ERROR PlatformManagerImpl::_StopEventLoopTask()
 {
     mbed::ScopedLock<rtos::Mutex> lock(mThisStateMutex);
 
-    // early return if the event loop is not running 
-    if (!mShouldRunEventLoop.load()) { 
+    // early return if the event loop is not running
+    if (!mShouldRunEventLoop.load())
+    {
         return CHIP_NO_ERROR;
     }
 
-    // Indicate that the event loop store 
+    // Indicate that the event loop store
     mShouldRunEventLoop.store(false);
 
     // Wake from select so it unblocks processing
@@ -247,21 +253,22 @@ CHIP_ERROR PlatformManagerImpl::_StopEventLoopTask()
 
     osStatus err = osOK;
 
-    // If the thread running the event loop is different from the caller 
-    // then wait it to finish 
+    // If the thread running the event loop is different from the caller
+    // then wait it to finish
     if (mChipTaskId != rtos::ThisThread::get_id())
     {
-        // First it waits for the condition variable to finish 
+        // First it waits for the condition variable to finish
         mEvenLoopStopCond.wait([this] { return mEventLoopHasStopped == true; });
 
         // Then if it was running on the internal task, wait for it to finish
-        if (mChipTaskId == mLoopTask.get_id()) { 
-            err = mLoopTask.join();
+        if (mChipTaskId == mLoopTask.get_id())
+        {
+            err          = mLoopTask.join();
             mInitialized = false; // the internal thread requires initialization again.
         }
     }
 
-    mChipTaskId = 0; 
+    mChipTaskId = 0;
     return TranslateOsStatus(err);
 }
 

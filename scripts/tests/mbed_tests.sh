@@ -16,7 +16,7 @@
 #    limitations under the License.
 #
 
-cd "$(dirname $0)/../.."
+cd "$(dirname "$0")/../.."
 CHIP_ROOT="$PWD"
 cd "$CHIP_ROOT/src/test_driver/mbed/"
 
@@ -32,25 +32,25 @@ COMMAND=build
 
 for i in "$@"; do
     case $i in
-    -b=* | --board=*)
-        TARGET_BOARD="${i#*=}"
-        shift
-        ;;
-    -t=* | --toolchain=*)
-        TOOLCHAIN="${i#*=}"
-        shift
-        ;;
-    -p=* | --profile=*)
-        PROFILE="${i#*=}"
-        shift
-        ;;
-    -c=* | --command=*)
-        COMMAND="${i#*=}"
-        shift
-        ;;
-    *)
-        # unknown option
-        ;;
+        -b=* | --board=*)
+            TARGET_BOARD="${i#*=}"
+            shift
+            ;;
+        -t=* | --toolchain=*)
+            TOOLCHAIN="${i#*=}"
+            shift
+            ;;
+        -p=* | --profile=*)
+            PROFILE="${i#*=}"
+            shift
+            ;;
+        -c=* | --command=*)
+            COMMAND="${i#*=}"
+            shift
+            ;;
+        *)
+            # unknown option
+            ;;
     esac
 done
 
@@ -89,21 +89,21 @@ if [[ "$COMMAND" == *"build"* ]]; then
     MBED_OS_PATH="$CHIP_ROOT"/third_party/mbed-os/repo
 
     # Create symlinks to mbed-os submodule
-    ln -sfTr $MBED_OS_PATH "mbed-os"
+    ln -sfTr "$MBED_OS_PATH" "mbed-os"
 
     if [ "$TARGET_BOARD" == "DISCO_L475VG_IOT01A" ]; then
         # Add the Mbed OS driver for the ISM43362 Wi-Fi module
         WIFI_ISM43362_PATH="$CHIP_ROOT"/third_party/wifi-ism43362/repo
 
         # Create symlinks to WIFI-ISM43362 submodule
-        ln -sfTr $WIFI_ISM43362_PATH "wifi-ism43362"
+        ln -sfTr "$WIFI_ISM43362_PATH" "wifi-ism43362"
     fi
 
     # Generate config file for selected target, toolchain and hardware
     mbed-tools configure -t "$TOOLCHAIN" -m "$TARGET_BOARD"
 
     # Remove old artifacts to force linking
-    rm -rf "${BUILD_DIRECTORY}/chip-"*
+    rm -rf "$BUILD_DIRECTORY/chip-"*
 
     # Create output directory and copy config file there.
     mkdir -p "$BUILD_DIRECTORY"
@@ -122,5 +122,5 @@ if [[ "$COMMAND" == *"flash"* ]]; then
     MBED_FLASH_SCRIPTS_PATH=$CHIP_ROOT/config/mbed/scripts
 
     # Flash application
-    openocd -f $MBED_FLASH_SCRIPTS_PATH/$TARGET_BOARD.tcl -c "program $BUILD_DIRECTORY/chip-tests verify reset exit"
+    openocd -f "$MBED_FLASH_SCRIPTS_PATH/$TARGET_BOARD".tcl -c "program $BUILD_DIRECTORY/chip-tests verify reset exit"
 fi

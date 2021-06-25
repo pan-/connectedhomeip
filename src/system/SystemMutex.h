@@ -142,7 +142,6 @@ inline void Mutex::Unlock(void)
 }
 #endif // CHIP_SYSTEM_CONFIG_FREERTOS_LOCKING
 
-
 } // namespace System
 } // namespace chip
 
